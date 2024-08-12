@@ -17,26 +17,25 @@ using namespace Eigen;
 using std::vector;
 namespace plt = matplotlibcpp;
 
-#define pi 3.1416
-
-class Cartpole_iLQR {
-public:
+class Cartpole_iLQR
+{
+  public:
   Cartpole_iLQR(std::string yaml_name);
   ~Cartpole_iLQR();
 
   double backward_pass();
-  void iLQR_algorithm(const Vector<double, 4> &xcur, const double &ucur);
+  void iLQR_algorithm(const Matrix<double, 4, 1>& xcur, const double& ucur);
 
-  double stage_cost(const Vector<double, 4> &x, const double &u);
-  double terminal_cost(const Vector<double, 4> &x);
-  double cost(const Matrix<double, 4, -1> &_xtraj, const VectorXd &_utraj);
+  double stage_cost(const Matrix<double, 4, 1>& x, const double& u);
+  double terminal_cost(const Matrix<double, 4, 1>& x);
+  double cost(const Matrix<double, 4, Dynamic>& _xtraj, const Matrix<double, 1, Dynamic>& _utraj);
 
-  void get_control(mjData *d);
+  void get_control(mjData* d);
   void traj_plot();
 
-private:
-  bool isPositiveDefinite(const MatrixXd &M);
-  double vector_max(const vector<double> &v);
+  private:
+  bool isPositiveDefinite(const MatrixXd& M);
+  double vector_max(const vector<double>& v);
 
   int nx, nu;
   double dt;
@@ -47,18 +46,18 @@ private:
   double m_cart, m_pole;
   double l;
 
-  Matrix<double, 4, -1> xtraj;
-  VectorXd utraj;
+  Matrix<double, 4, Dynamic> xtraj;
+  Matrix<double, 1, Dynamic> utraj;
   vector<double> Jtraj;
-  Vector<double, 4> x0;
-  Vector<double, 4> xgoal;
+  Matrix<double, 4, 1> x0;
+  Matrix<double, 4, 1> xgoal;
 
   MatrixXd Q, Qn;
   double R;
-  vector<Vector<double, 4>> p;
+  vector<Matrix<double, 4, 1>> p;
   vector<Matrix<double, 4, 4>> P;
   vector<double> d;
   vector<Matrix<double, 1, 4>> K;
 
-  Cartpole_Dynamics *cartpole_dynamics;
+  Cartpole_Dynamics* cartpole_dynamics;
 };

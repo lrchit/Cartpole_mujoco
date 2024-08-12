@@ -14,10 +14,7 @@ project(cartpole_sim)
 
 include(FetchContent)  
 
-set(casadi_INCLUDE_DIRS /usr/local/include/casadi)
-set(mujoco_INCLUDE_DIRS /usr/local/include/mujoco)
-set(eigen_INCLUDE_DIRS /usr/local/include/eigen3)
-# set(colpack_INCLUDE_DIRS /usr/local/include/ColPack_headers)
+set(mujoco_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/include/mujoco)
 set(MUJOCO_DEP_VERSION_lodepng
     b4ed2cd7ecf61d29076169b49199371456d4f90b
     CACHE STRING "Version of `lodepng` to be fetched."
@@ -25,30 +22,17 @@ set(MUJOCO_DEP_VERSION_lodepng
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/build/bin)
-set(pinocchio_INCLUDE_DIRS /usr/local/include/pinocchio)
 
-find_package(Eigen3 REQUIRED)
-# find_package(ColPack REQUIRED)
-# find_library(COLPACK_LIBRARY NAMES ColPack PATHS /usr/local/lib NO_DEFAULT_PATH)
-find_library(CPPAD_LIB cppad_lib)
-find_package(casadi REQUIRED)
-find_package(mujoco REQUIRED)
 find_package(glfw3 REQUIRED)
-find_package(OsqpEigen REQUIRED)
-find_package(pinocchio REQUIRED)
+find_library(CPPAD_LIB cppad_lib)
 find_package(yaml-cpp REQUIRED)
 find_package(Python3 COMPONENTS Development NumPy)
 
-# 把傻鸟Eigen的内存阈值关了
 add_compile_definitions(EIGEN_STACK_ALLOCATION_LIMIT=0)
 
 include_directories(
     ./
-    ${casadi_INCLUDE_DIRS}
-    ${mujoco_INCLUDE_DIRS}
-    ${eigen_INCLUDE_DIRS}
-    # ${colpack_INCLUDE_DIRS}
-    ${pinocchio_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/include
     simulate
     controllers/iLQR
     ${Python3_INCLUDE_DIRS} 
@@ -86,14 +70,10 @@ add_executable(main main.cpp
 )
 
 target_link_libraries(main
-    casadi
-    # /usr/local/lib/libColPack.so
-    ${CPPAD_LIB}
-    mujoco::mujoco
     glfw
+    ${CPPAD_LIB}
+    ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/lib/libmujoco.so.3.1.0
     lodepng
-    OsqpEigen::OsqpEigen
-    pinocchio
     yaml-cpp::yaml-cpp
     Python3::Python 
     Python3::NumPy

@@ -1,46 +1,42 @@
 
 #pragma once
 
-// #include <ColPackHeaders.h> //
-// ColPack的主头文件（根据实际安装情况可能有所不同）
-#include <cppad/cppad.hpp> // the CppAD package
+#include <cppad/cppad.hpp>  // the CppAD package
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
-#include <iostream> // standard input/output
-#include <vector>   // standard vector
+#include <iostream>  // standard input/output
+#include <vector>    // standard vector
 
 using namespace Eigen;
 using CppAD::AD;
 using CppAD::sparse_rc;
 using CppAD::sparse_rcv;
-using std::vector; // use vector as abbreviation for std::vector
 
-typedef vector<double> d_vector;
-typedef vector<int> s_vector;
+typedef Matrix<double, Dynamic, 1> d_vector;
+typedef Matrix<int, Dynamic, 1> s_vector;
 
 #define pi 3.1416
 
-class Cartpole_Dynamics {
-public:
+class Cartpole_Dynamics
+{
+  public:
   Cartpole_Dynamics(double _dt, double _m_cart, double _m_pole, double _l);
   ~Cartpole_Dynamics();
 
-  // discretizised dynamics
-  vector<AD<double>> cartpole_dynamics_discrete(const vector<AD<double>> &x);
-  // continuous dynamics
-  vector<AD<double>> cartpole_dynamics_continuous(const vector<AD<double>> &x);
+  // dynamics
+  template <typename T>
+  Matrix<T, Dynamic, 1> cartpole_dynamics_model(const Matrix<T, Dynamic, 1>& x, const Matrix<T, Dynamic, 1>& u);
+
+  // rollout
+  template <typename T>
+  Matrix<T, Dynamic, 1> cartpole_dynamics_integrate(const Matrix<T, Dynamic, 1>& x, const Matrix<T, Dynamic, 1>& u);
+
   // compute jacobian
-  Matrix<double, 4, 5>
-  jacobian_cartpole_dynamics_discrete(const Vector<double, 4> &_x,
-                                      const double &_u);
+  Matrix<double, 4, 5> get_dynamics_jacobian(const Matrix<double, Dynamic, 1>& x, const Matrix<double, Dynamic, 1>& u);
 
-  // rollout dynamics
-  Vector<double, 5> cartpole_dynamics_model(const Vector<double, 5> &x);
-  Vector<double, 4> cartpole_dynamics_rollout(const Vector<double, 4> &_x,
-                                              const double &_u);
-
-private:
-  int nx, nu;
+  private:
+  const int nx = 4;
+  const int nu = 1;
   double dt;
   double m_cart, m_pole;
   double l;

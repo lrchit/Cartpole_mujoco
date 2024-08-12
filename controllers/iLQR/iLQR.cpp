@@ -1,8 +1,8 @@
 
 #include <iLQR.h>
 
-Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
-
+Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name)
+{
   nx = 4;
   nu = 1;
 
@@ -46,14 +46,16 @@ Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
 Cartpole_iLQR::~Cartpole_iLQR(){};
 
 // cost function
-double Cartpole_iLQR::stage_cost(const Vector<double, 4> &x, const double &u) {
+double Cartpole_iLQR::stage_cost(const Matrix<double, 4, 1>& x, const double& u)
+{
   return 0.5 * (x - xgoal).transpose() * Q * (x - xgoal) + 0.5 * R * u * u;
 }
-double Cartpole_iLQR::terminal_cost(const Vector<double, 4> &x) {
+double Cartpole_iLQR::terminal_cost(const Matrix<double, 4, 1>& x)
+{
   return 0.5 * (x - xgoal).transpose() * Qn * (x - xgoal);
 }
-double Cartpole_iLQR::cost(const Matrix<double, 4, -1> &_xtraj,
-                           const VectorXd &_utraj) {
+double Cartpole_iLQR::cost(const Matrix<double, 4, Dynamic>& _xtraj, const Matrix<double, 1, Dynamic>& _utraj)
+{
   double J = 0.0;
   for (int k = 0; k < (Nt - 1); ++k)
     J += stage_cost(_xtraj.col(k), _utraj(k));
@@ -61,47 +63,51 @@ double Cartpole_iLQR::cost(const Matrix<double, 4, -1> &_xtraj,
   return J;
 }
 
-bool Cartpole_iLQR::isPositiveDefinite(const MatrixXd &M) {
+bool Cartpole_iLQR::isPositiveDefinite(const MatrixXd& M)
+{
   // 对于小尺寸矩阵，可以直接计算特征值
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(M);
-  const auto &eigenvalues = es.eigenvalues();
+  const auto& eigenvalues = es.eigenvalues();
   // 检查所有特征值是否大于零
-  for (int i = 0; i < eigenvalues.size(); ++i) {
-    if (eigenvalues[i] <= 0) { // 如果有任何一个特征值小于等于零
+  for (int i = 0; i < eigenvalues.size(); ++i)
+  {
+    if (eigenvalues[i] <= 0)
+    {  // 如果有任何一个特征值小于等于零
       return false;
     }
   }
-  return true; // 所有特征值都大于零，则矩阵是正定的
+  return true;  // 所有特征值都大于零，则矩阵是正定的
 }
 
-double Cartpole_iLQR::backward_pass() {
+double Cartpole_iLQR::backward_pass()
+{
   double delta_J = 0.0;
   p[Nt - 1] = Qn * (xtraj.col(Nt - 1) - xgoal);
   P[Nt - 1] = Qn;
 
   Matrix<double, 4, 5> jacobian;
-  Vector<double, 4> q;
+  Matrix<double, 4, 1> q;
   double r;
   Matrix<double, 4, 4> A;
-  Vector<double, 4> B;
-  Vector<double, 4> gx;
+  Matrix<double, 4, 1> B;
+  Matrix<double, 4, 1> gx;
   double gu;
   Matrix<double, 4, 4> Gxx;
   double Guu;
-  Vector<double, 4> Gxu;
+  Matrix<double, 4, 1> Gxu;
   Matrix<double, 1, 4> Gux;
   MatrixXd G(5, 5);
   Matrix4d I;
   I.setIdentity();
 
-  for (int k = (Nt - 2); k > -1; --k) {
+  for (int k = (Nt - 2); k > -1; --k)
+  {
     // Calculate derivatives
     q = Q * (xtraj.col(k) - xgoal);
     r = R * utraj[k];
 
     // df/dx for A and df/du for B
-    jacobian = cartpole_dynamics->jacobian_cartpole_dynamics_discrete(
-        xtraj.col(k), utraj(k));
+    jacobian = cartpole_dynamics->get_dynamics_jacobian(xtraj.col(k), utraj.col(k));
     A = jacobian.block(0, 0, 4, 4);
     B = jacobian.block(0, 4, 4, 1);
 
@@ -122,7 +128,8 @@ double Cartpole_iLQR::backward_pass() {
     G.block(4, 0, 1, 4) = Gux;
     G(4, 4) = Guu;
 
-    while (!isPositiveDefinite(G)) {
+    while (!isPositiveDefinite(G))
+    {
       Gxx += A.transpose() * beta * I * A;
       Guu += B.transpose() * beta * I * B;
       Gxu += A.transpose() * beta * I * B;
@@ -138,10 +145,8 @@ double Cartpole_iLQR::backward_pass() {
     d[k] = gu / Guu;
     K[k] = Gux / Guu;
 
-    p[k] =
-        gx - K[k].transpose() * gu + K[k].transpose() * Guu * d[k] - Gxu * d[k];
-    P[k] = Gxx + K[k].transpose() * Guu * K[k] - Gxu * K[k] -
-           K[k].transpose() * Gux;
+    p[k] = gx - K[k].transpose() * gu + K[k].transpose() * Guu * d[k] - Gxu * d[k];
+    P[k] = Gxx + K[k].transpose() * Guu * K[k] - Gxu * K[k] - K[k].transpose() * Gux;
 
     delta_J += gu * d[k];
   }
@@ -149,48 +154,53 @@ double Cartpole_iLQR::backward_pass() {
   return delta_J;
 }
 
-double Cartpole_iLQR::vector_max(const vector<double> &v) {
+double Cartpole_iLQR::vector_max(const vector<double>& v)
+{
   double v_max = 0;
-  for (int i = 0; i < v.size(); ++i) {
+  for (int i = 0; i < v.size(); ++i)
+  {
     if (v_max < fabs(v[i]))
       v_max = fabs(v[i]);
   }
   return v_max;
 }
 
-void Cartpole_iLQR::iLQR_algorithm(const Vector<double, 4> &xcur,
-                                   const double &ucur) {
+void Cartpole_iLQR::iLQR_algorithm(const Matrix<double, 4, 1>& xcur, const double& ucur)
+{
   // std::chrono::time_point<std::chrono::system_clock> t_start =
   //     std::chrono::system_clock::now();
 
-  for (int i = 0; i < Nt - 1; ++i) {
+  for (int i = 0; i < Nt - 1; ++i)
+  {
     xtraj.col(i) = xcur;
     utraj(i) = ucur;
   }
   xtraj.col(Nt - 1) = xcur;
 
   // initialize p and d
-  for (int i = 0; i < Nt - 1; ++i) {
+  for (int i = 0; i < Nt - 1; ++i)
+  {
     p[i].setOnes();
     d[i] = 1;
   }
   p[Nt - 1].setOnes();
 
   // Initial Rollout
-  for (int k = 0; k < (Nt - 1); ++k) {
-    xtraj.col(k + 1) =
-        cartpole_dynamics->cartpole_dynamics_rollout(xtraj.col(k), utraj(k));
+  for (int k = 0; k < (Nt - 1); ++k)
+  {
+    xtraj.col(k + 1) = cartpole_dynamics->cartpole_dynamics_integrate<double>(xtraj.col(k), utraj.col(k));
   }
   double J = cost(xtraj, utraj);
 
   // DDP Algorithm
   double delta_J = 1.0;
 
-  Matrix<double, 4, -1> xn(nx, Nt);
-  VectorXd un(Nt - 1);
+  Matrix<double, 4, Dynamic> xn(nx, Nt);
+  Matrix<double, 1, Dynamic> un(Nt - 1);
 
   int iter = 0;
-  while (vector_max(d) > 1e-3) {
+  while (vector_max(d) > 1e-3)
+  {
     iter++;
     // Backward Pass
     delta_J = backward_pass();
@@ -199,60 +209,21 @@ void Cartpole_iLQR::iLQR_algorithm(const Vector<double, 4> &xcur,
     xn.col(0) = xtraj.col(0);
     double alpha = 1.0;
 
-    for (int k = 0; k < (Nt - 1); ++k) {
+    for (int k = 0; k < (Nt - 1); ++k)
+    {
       un[k] = utraj[k] - alpha * d[k] - K[k] * (xn.col(k) - xtraj.col(k));
-      if (fabs(un(k)) > 100000) {
-        std::cout << "utraj[k] = " << utraj[k] << std::endl;
-        std::cout << "d[k] = " << d[k] << std::endl;
-        std::cout << "K[k] = " << K[k] << std::endl;
-        std::cout << "xn.col(k) = " << xn.col(k) << std::endl;
-        std::cout << "xtraj.col(k) = " << xtraj.col(k) << std::endl;
-        std::cerr << "Error: Variable 'un(k)' has become NaN. Stopping "
-                     "rollout. k = "
-                  << k << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      xn.col(k + 1) =
-          cartpole_dynamics->cartpole_dynamics_rollout(xn.col(k), un[k]);
-      if (fabs(xn(0, k + 1)) > 100000) {
-        std::cout << "un[k] = " << un[k] << std::endl;
-        std::cout << "xn.col(k) = " << xn.col(k) << std::endl;
-        std::cerr << "Error: Variable 'xn(0, k + 1)' has become NaN. Stopping "
-                     "rollout. k = "
-                  << k << std::endl;
-        exit(EXIT_FAILURE);
-      }
+      xn.col(k + 1) = cartpole_dynamics->cartpole_dynamics_integrate<double>(xn.col(k), un.col(k));
     }
     double Jn = cost(xn, un);
 
     // line search
-    while (Jn > (J - 1e-2 * alpha * delta_J)) {
+    while (Jn > (J - 1e-2 * alpha * delta_J))
+    {
       alpha = 0.5 * alpha;
-      for (int k = 0; k < (Nt - 1); ++k) {
+      for (int k = 0; k < (Nt - 1); ++k)
+      {
         un[k] = utraj[k] - alpha * d[k] - K[k] * (xn.col(k) - xtraj.col(k));
-        if (fabs(un(k)) > 100000) {
-          std::cout << "utraj[k] = " << utraj[k] << std::endl;
-          std::cout << "d[k] = " << d[k] << std::endl;
-          std::cout << "K[k] = " << K[k] << std::endl;
-          std::cout << "xn.col(k) = " << xn.col(k) << std::endl;
-          std::cout << "xtraj.col(k) = " << xtraj.col(k) << std::endl;
-          std::cerr << "Error: Variable 'un(k)' has become NaN. Stopping "
-                       "line search. k = "
-                    << k << std::endl;
-          exit(EXIT_FAILURE);
-        }
-
-        xn.col(k + 1) =
-            cartpole_dynamics->cartpole_dynamics_rollout(xn.col(k), un[k]);
-        if (fabs(xn(0, k + 1)) > 100000) {
-          std::cout << "un[k] = " << un[k] << std::endl;
-          std::cout << "xn.col(k) = " << xn.col(k) << std::endl;
-          std::cerr
-              << "Error: Variable 'xn(0, k + 1)' has become NaN. Stopping "
-                 "line search. k = "
-              << k << std::endl;
-          exit(EXIT_FAILURE);
-        }
+        xn.col(k + 1) = cartpole_dynamics->cartpole_dynamics_integrate<double>(xn.col(k), un.col(k));
       }
       Jn = cost(xn, un);
     }
@@ -272,11 +243,12 @@ void Cartpole_iLQR::iLQR_algorithm(const Vector<double, 4> &xcur,
 }
 
 // 最优状态和控制轨迹
-void Cartpole_iLQR::traj_plot() {
-
+void Cartpole_iLQR::traj_plot()
+{
   // 绘制J
   std::vector<double> J_length;
-  for (size_t i = 0; i < Jtraj.size(); ++i) {
+  for (size_t i = 0; i < Jtraj.size(); ++i)
+  {
     J_length.push_back(i);
   }
   plt::named_plot("cost", J_length, Jtraj, "-y");
@@ -290,14 +262,17 @@ void Cartpole_iLQR::traj_plot() {
 
   // 绘制状态轨迹
   std::vector<double> time_series(Nt - 1);
-  for (size_t i = 0; i < Nt - 1; ++i) {
+  for (size_t i = 0; i < Nt - 1; ++i)
+  {
     time_series[i] = i * dt;
   }
   std::vector<std::string> line_type = {"-b", "-k", "-r", "-g"};
   std::vector<std::string> plot_name = {"pos", "theta", "vel", "omega"};
   std::vector<double> state_series(Nt - 1);
-  for (int k = 0; k < nx; ++k) {
-    for (size_t i = 0; i < Nt - 1; ++i) {
+  for (int k = 0; k < nx; ++k)
+  {
+    for (size_t i = 0; i < Nt - 1; ++i)
+    {
       state_series[i] = xtraj(k, i);
     }
     plt::named_plot(plot_name[k], time_series, state_series, line_type[k]);
@@ -310,7 +285,8 @@ void Cartpole_iLQR::traj_plot() {
 
   // 绘制控制轨迹
   std::vector<double> control_series(Nt - 1);
-  for (int i = 0; i < Nt - 1; ++i) {
+  for (int i = 0; i < Nt - 1; ++i)
+  {
     control_series[i] = utraj(i);
   }
   plt::named_plot("control", time_series, control_series, "r--");
@@ -321,28 +297,34 @@ void Cartpole_iLQR::traj_plot() {
   plt::show();
 }
 
-void Cartpole_iLQR::get_control(mjData *d) {
-
+void Cartpole_iLQR::get_control(mjData* d)
+{
   int waiting_time = 100;
   static int counter = 0;
   static int index = 0;
 
-  if (counter < waiting_time) {
+  if (counter < waiting_time)
+  {
     counter++;
-  } else if ((counter - waiting_time) % (int)(step / 0.002) == 0) {
+  }
+  else if ((counter - waiting_time) % (int)(step / 0.002) == 0)
+  {
     // std::cout << "********** iLQR *********" << std::endl;
-    Vector4d _xcur = Vector4d(d->sensordata[0], d->sensordata[1],
-                              d->sensordata[2], d->sensordata[3]);
+    Matrix<double, 4, 1> _xcur =
+        Matrix<double, 4, 1>(d->sensordata[0], d->sensordata[1], d->sensordata[2], d->sensordata[3]);
     double _ucur = 1e-4;
     iLQR_algorithm(_xcur, _ucur);
     index = 0;
     counter++;
-  } else {
+  }
+  else
+  {
     // 设置控制力
     d->ctrl[0] = fmin(fmax(utraj[index], -100), 100);
-    d->ctrl[1] = 0; // pole没有直接控制
+    d->ctrl[1] = 0;  // pole没有直接控制
     counter++;
-    if (counter % (int)(dt / 0.002) == 0) {
+    if (counter % (int)(dt / 0.002) == 0)
+    {
       index++;
     }
   }
@@ -351,7 +333,7 @@ void Cartpole_iLQR::get_control(mjData *d) {
   // if (counter < waiting_time) {
   //   counter++;
   // } else if (counter == waiting_time) {
-  //   Vector4d _xcur = Vector4d(d->sensordata[0], d->sensordata[1],
+  //   Matrix<double,4,1> _xcur = Matrix<double,4,1>(d->sensordata[0], d->sensordata[1],
   //                             d->sensordata[2], d->sensordata[3]);
   //   double _ucur = 1e-4;
   //   iLQR_algorithm(_xcur, _ucur);
