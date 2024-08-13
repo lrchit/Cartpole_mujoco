@@ -1,5 +1,5 @@
-1. install glfw, Eigen3, CppAD, matplotlib-cpp
+1. install glfw, Eigen3, CppAD, matplotlib-cpp, yaml-cpp
 2. mkdir build && cd build
-   cmake ..
-   make -j
-   ./bin/main
+3. cmake ..
+4. make -j
+5. ./bin/main
