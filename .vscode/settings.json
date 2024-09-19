@@ -60,7 +60,14 @@
         "complex": "cpp",
         "list": "cpp",
         "cfenv": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "ranges": "cpp",
+        "stop_token": "cpp",
+        "numbers": "cpp",
+        "semaphore": "cpp",
+        "any": "cpp"
     },
     "workbench.colorTheme": "Default Dark Modern",
     "workbench.editor.decorations.colors": true,

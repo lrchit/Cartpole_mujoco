@@ -9,6 +9,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native")
 
 project(cartpole_sim)
 
@@ -21,22 +22,30 @@ set(MUJOCO_DEP_VERSION_lodepng
 )
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/build/bin)
 
+set(eigen_INCLUDE_DIRS /usr/local/include/eigen3)
+set(cppad_INCLUDE_DIRS /usr/local/include/cppad)
+
 find_package(glfw3 REQUIRED)
-find_library(CPPAD_LIB cppad_lib)
+find_package(OpenMP REQUIRED)
 find_package(yaml-cpp REQUIRED)
-find_package(Python3 COMPONENTS Development NumPy)
+find_package(Eigen3 REQUIRED)
+find_package(PythonLibs REQUIRED)
+find_package(Boost REQUIRED COMPONENTS filesystem system)
 
 add_compile_definitions(EIGEN_STACK_ALLOCATION_LIMIT=0)
 
 include_directories(
     ./
     ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/include
+    ${EIGEN3_INCLUDE_DIR}
+    ${Boost_INCLUDE_DIRS}
     simulate
     controllers/iLQR
-    ${Python3_INCLUDE_DIRS} 
-    ${Python3_NumPy_INCLUDE_DIRS}
+    auto_diff
+    ${PYTHON_INCLUDE_DIRS}
 )
 
 # Fetch lodepng dependency.
@@ -62,20 +71,22 @@ endif()
 
 aux_source_directory(simulate SIM_SRC)
 aux_source_directory(controllers/iLQR ILQR_SRC)
+aux_source_directory(auto_diff AUTO_DIFF_SRC)
 
 add_executable(main main.cpp
                     ${ILQR_SRC}
                     ${SIM_SRC}
-
+                    ${AUTO_DIFF_SRC}
 )
 
 target_link_libraries(main
     glfw
-    ${CPPAD_LIB}
     ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/lib/libmujoco.so.3.1.0
     lodepng
     yaml-cpp::yaml-cpp
-    Python3::Python 
-    Python3::NumPy
+    ${PYTHON_LIBRARIES}
+    ${Boost_LIBRARIES}
+    OpenMP::OpenMP_CXX
 )
+
 

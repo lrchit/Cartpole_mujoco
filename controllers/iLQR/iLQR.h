@@ -2,8 +2,7 @@
 #pragma once
 
 #include <chrono>
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/Dense>
+#include <auto_diff/Types.h>
 #include <iostream>
 #include <matplotlibcpp.h>
 #include <mujoco/mujoco.h>
@@ -13,29 +12,31 @@
 #include "pd_controller.h"
 #include <dynamics.h>
 
-using namespace Eigen;
-using std::vector;
 namespace plt = matplotlibcpp;
 
-class Cartpole_iLQR
-{
+class Cartpole_iLQR {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   public:
   Cartpole_iLQR(std::string yaml_name);
   ~Cartpole_iLQR();
 
-  double backward_pass();
-  void iLQR_algorithm(const Matrix<double, 4, 1>& xcur, const double& ucur);
-
-  double stage_cost(const Matrix<double, 4, 1>& x, const double& u);
-  double terminal_cost(const Matrix<double, 4, 1>& x);
-  double cost(const Matrix<double, 4, Dynamic>& _xtraj, const Matrix<double, 1, Dynamic>& _utraj);
-
   void get_control(mjData* d);
-  void traj_plot();
 
   private:
-  bool isPositiveDefinite(const MatrixXd& M);
-  double vector_max(const vector<double>& v);
+  bool isPositiveDefinite(const ocs2::matrix_t& M);
+  double vector_max(const std::vector<ocs2::vector_t>& v);
+
+  double cost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj);
+  void calDerivatives();
+  double backward_pass();
+  double line_search(double delta_J, double J);
+  void solve();
+
+  void reset_solver(const ocs2::vector_t& xcur);
+
+  void iLQR_algorithm(const ocs2::vector_t& xcur);
+
+  void traj_plot();
 
   int nx, nu;
   double dt;
@@ -46,18 +47,35 @@ class Cartpole_iLQR
   double m_cart, m_pole;
   double l;
 
-  Matrix<double, 4, Dynamic> xtraj;
-  Matrix<double, 1, Dynamic> utraj;
-  vector<double> Jtraj;
-  Matrix<double, 4, 1> x0;
-  Matrix<double, 4, 1> xgoal;
+  bool verbose_cal_time = false;
 
-  MatrixXd Q, Qn;
-  double R;
-  vector<Matrix<double, 4, 1>> p;
-  vector<Matrix<double, 4, 4>> P;
-  vector<double> d;
-  vector<Matrix<double, 1, 4>> K;
+  bool first_run = true;
 
-  Cartpole_Dynamics* cartpole_dynamics;
+  std::vector<ocs2::vector_t> xtraj;
+  std::vector<ocs2::vector_t> utraj;
+  std::vector<double> Jtraj;
+  ocs2::vector_t x0;
+  ocs2::vector_t xgoal;
+
+  ocs2::matrix_t Q, Qn;
+  ocs2::matrix_t R;
+  std::vector<ocs2::vector_t> p;
+  std::vector<ocs2::matrix_t> P;
+  std::vector<ocs2::vector_t> d;
+  std::vector<ocs2::matrix_t> K;
+
+  std::vector<ocs2::vector_t> q;
+  std::vector<ocs2::vector_t> r;
+  std::vector<ocs2::matrix_t> A;
+  std::vector<ocs2::vector_t> B;
+
+  // line search param
+  double sigma;
+  double beta;
+
+  std::vector<std::shared_ptr<ocs2::CppAdInterface>> systemFlowMapCppAdInterfacePtr_;  //!< CppAd code gen
+
+  std::vector<ocs2::scalar_t> derivativeTime_;
+  std::vector<ocs2::scalar_t> backwardPassTime_;
+  std::vector<ocs2::scalar_t> lineSeachTime_;
 };

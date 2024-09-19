@@ -1,13 +1,13 @@
 
 #include <iLQR.h>
 
-Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name)
-{
+Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
   nx = 4;
   nu = 1;
 
   Q.setZero(nx, nx);
   Qn.setZero(nx, nx);
+  R.setZero(nu, nu);
 
   YAML::Node config = YAML::LoadFile(yaml_name);
   // Initialize weight matrix
@@ -19,7 +19,7 @@ Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name)
   Qn(1, 1) = config["Qn"]["q2"].as<double>();
   Qn(2, 2) = config["Qn"]["q3"].as<double>();
   Qn(3, 3) = config["Qn"]["q4"].as<double>();
-  R = config["R"]["r1"].as<double>();
+  R(0, 0) = config["R"]["r1"].as<double>();
 
   dt = config["dt"].as<double>();
   step = config["step"].as<double>();
@@ -30,225 +30,277 @@ Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name)
   m_pole = config["m_pole"].as<double>();
   l = config["l"].as<double>();
 
+  sigma = config["sigma"].as<double>();
+  beta = config["beta"].as<double>();
+
+  verbose_cal_time = config["verbose_cal_time"].as<bool>();
+
+  Cartpole_Dynamics* cartpole_dynamics;
   cartpole_dynamics = new Cartpole_Dynamics(dt, m_cart, m_pole, l / 2);
+  std::shared_ptr<ocs2::CppAdInterface> systemFlowMapCppAdInterfacePtr;
+  auto systemFlowMapFunc = [&](const ocs2::ad_vector_t& x, ocs2::ad_vector_t& y) {
+    ocs2::ad_vector_t state = x.head(4);
+    ocs2::ad_vector_t input = x.tail(1);
+    y = cartpole_dynamics->cartpole_dynamics_integrate<ocs2::ad_scalar_t>(state, input);
+  };
+  systemFlowMapCppAdInterfacePtr.reset(new ocs2::CppAdInterface(systemFlowMapFunc, 5, "cartpole_dynamics_systemFlowMap", "../cppad_generated"));
+  if (true) {
+    systemFlowMapCppAdInterfacePtr->createModels(ocs2::CppAdInterface::ApproximationOrder::First, true);
+  } else {
+    systemFlowMapCppAdInterfacePtr->loadModelsIfAvailable(ocs2::CppAdInterface::ApproximationOrder::First, true);
+  }
+  for (int i = 0; i < Nt; ++i) {
+    systemFlowMapCppAdInterfacePtr_.push_back(systemFlowMapCppAdInterfacePtr);
+  }
 
   p.resize(Nt);
   P.resize(Nt);
   d.resize(Nt - 1);
   K.resize(Nt - 1);
+  q.resize(Nt - 1);
+  r.resize(Nt - 1);
+  A.resize(Nt - 1);
+  B.resize(Nt - 1);
+  xtraj.resize(Nt);
+  utraj.resize(Nt - 1);
+  for (int i = 0; i < Nt - 1; ++i) {
+    p[i].setZero(nx, nu);
+    P[i].setZero(nx, nx);
+    d[i].setZero(nu, nu);
+    K[i].setZero(nu, nx);
+    xtraj[i].setZero(nx);
+    utraj[i].setZero(nu);
+  }
+  p[Nt - 1].setZero(nx, nu);
+  P[Nt - 1].setZero(nx, nx);
+  xtraj[Nt - 1].setZero(nx);
 
   // Initial guess
-  xtraj.setZero(nx, Nt);
-  utraj.setZero(Nt - 1);
-  xgoal << 0, 0, 0, 0;
+  xgoal.setZero(nx);
 }
 
-Cartpole_iLQR::~Cartpole_iLQR(){};
+Cartpole_iLQR::~Cartpole_iLQR() {
+  double derivativeTimeTotal = 0;
+  double backwardPassTimeTotal = 0;
+  double lineSeachTimeTotal = 0;
+  for (int i = 0; i < derivativeTime_.size() - 1; ++i) {
+    derivativeTimeTotal += derivativeTime_[i];
+    backwardPassTimeTotal += backwardPassTime_[i];
+    lineSeachTimeTotal += lineSeachTime_[i];
+  }
+  double totalTimeAverage = (derivativeTimeTotal + backwardPassTimeTotal + lineSeachTimeTotal) / derivativeTime_.size();
+  if (verbose_cal_time) {
+    std::cout << "################################################" << std::endl;
+    std::cout << "  Average Time    =     " << totalTimeAverage << " ms " << std::endl;
+    std::cout << "  derivative      =     " << derivativeTimeTotal / derivativeTime_.size() << " ms  "
+              << derivativeTimeTotal / derivativeTime_.size() / totalTimeAverage * 100 << "%" << std::endl;
+    std::cout << "  backward pass   =     " << backwardPassTimeTotal / derivativeTime_.size() << " ms  "
+              << backwardPassTimeTotal / derivativeTime_.size() / totalTimeAverage * 100 << "%" << std::endl;
+    std::cout << "  line search     =     " << lineSeachTimeTotal / derivativeTime_.size() << " ms  "
+              << lineSeachTimeTotal / derivativeTime_.size() / totalTimeAverage * 100 << "%" << std::endl;
+    std::cout << "################################################" << std::endl;
+  }
+}
 
-// cost function
-double Cartpole_iLQR::stage_cost(const Matrix<double, 4, 1>& x, const double& u)
-{
-  return 0.5 * (x - xgoal).transpose() * Q * (x - xgoal) + 0.5 * R * u * u;
-}
-double Cartpole_iLQR::terminal_cost(const Matrix<double, 4, 1>& x)
-{
-  return 0.5 * (x - xgoal).transpose() * Qn * (x - xgoal);
-}
-double Cartpole_iLQR::cost(const Matrix<double, 4, Dynamic>& _xtraj, const Matrix<double, 1, Dynamic>& _utraj)
-{
-  double J = 0.0;
-  for (int k = 0; k < (Nt - 1); ++k)
-    J += stage_cost(_xtraj.col(k), _utraj(k));
-  J += terminal_cost(_xtraj.col(Nt - 1));
-  return J;
+double Cartpole_iLQR::vector_max(const std::vector<ocs2::vector_t>& v) {
+  double v_max = 0;
+  for (int i = 0; i < v.size(); ++i) {
+    if (v_max < v[i].cwiseAbs().maxCoeff())
+      v_max = v[i].cwiseAbs().maxCoeff();
+  }
+  return v_max;
 }
 
-bool Cartpole_iLQR::isPositiveDefinite(const MatrixXd& M)
-{
+bool Cartpole_iLQR::isPositiveDefinite(const ocs2::matrix_t& M) {
   // 对于小尺寸矩阵，可以直接计算特征值
-  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(M);
+  Eigen::SelfAdjointEigenSolver<ocs2::matrix_t> es(M);
   const auto& eigenvalues = es.eigenvalues();
   // 检查所有特征值是否大于零
-  for (int i = 0; i < eigenvalues.size(); ++i)
-  {
-    if (eigenvalues[i] <= 0)
-    {  // 如果有任何一个特征值小于等于零
+  for (int i = 0; i < eigenvalues.size(); ++i) {
+    if (eigenvalues[i] <= 0) {  // 如果有任何一个特征值小于等于零
       return false;
     }
   }
   return true;  // 所有特征值都大于零，则矩阵是正定的
 }
 
-double Cartpole_iLQR::backward_pass()
-{
-  double delta_J = 0.0;
-  p[Nt - 1] = Qn * (xtraj.col(Nt - 1) - xgoal);
-  P[Nt - 1] = Qn;
+// cost function
+double Cartpole_iLQR::cost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj) {
+  double J = 0.0;
+  for (int k = 0; k < (Nt - 1); ++k)
+    J += (0.5 * (_xtraj[k] - xgoal).transpose() * Q * (_xtraj[k] - xgoal) + 0.5 * _utraj[k].transpose() * R * _utraj[k]).value();
+  J += (0.5 * (_xtraj[Nt - 1] - xgoal).transpose() * Qn * (_xtraj[Nt - 1] - xgoal)).value();
+  return J;
+}
 
-  Matrix<double, 4, 5> jacobian;
-  Matrix<double, 4, 1> q;
-  double r;
-  Matrix<double, 4, 4> A;
-  Matrix<double, 4, 1> B;
-  Matrix<double, 4, 1> gx;
-  double gu;
-  Matrix<double, 4, 4> Gxx;
-  double Guu;
-  Matrix<double, 4, 1> Gxu;
-  Matrix<double, 1, 4> Gux;
-  MatrixXd G(5, 5);
-  Matrix4d I;
-  I.setIdentity();
-
-  for (int k = (Nt - 2); k > -1; --k)
-  {
+void Cartpole_iLQR::calDerivatives() {
+  // #pragma omp parallel for num_threads(4)
+  for (int k = (Nt - 2); k > -1; --k) {
     // Calculate derivatives
-    q = Q * (xtraj.col(k) - xgoal);
-    r = R * utraj[k];
+    q[k].noalias() = Q * (xtraj[k] - xgoal);
+    r[k].noalias() = R * utraj[k];
 
     // df/dx for A and df/du for B
-    jacobian = cartpole_dynamics->get_dynamics_jacobian(xtraj.col(k), utraj.col(k));
-    A = jacobian.block(0, 0, 4, 4);
-    B = jacobian.block(0, 4, 4, 1);
+    const ocs2::vector_t stateInput = (ocs2::vector_t(xtraj[k].rows() + utraj[k].rows()) << xtraj[k], utraj[k]).finished();
+    const ocs2::matrix_t jacobian = systemFlowMapCppAdInterfacePtr_[k]->getJacobian(stateInput);
 
-    gx = q + A.transpose() * p[k + 1];
-    gu = r + B.transpose() * p[k + 1];
+    // df/dx for A and df/du for B
+    A[k].noalias() = jacobian.block(0, 0, 4, 4);
+    B[k].noalias() = jacobian.block(0, 4, 4, 1);
+  }
+}
+
+double Cartpole_iLQR::backward_pass() {
+  double delta_J = 0.0;
+  p[Nt - 1].noalias() = Qn * (xtraj[Nt - 1] - xgoal);
+  P[Nt - 1].noalias() = Qn;
+
+  ocs2::vector_t gx;
+  ocs2::vector_t gu;
+  ocs2::matrix_t Gxx;
+  ocs2::vector_t Guu;
+  ocs2::vector_t Gxu;
+  ocs2::matrix_t Gux;
+  ocs2::matrix_t G(nx + nu, nx + nu);
+  ocs2::matrix_t tempAP;
+  ocs2::matrix_t tempBP;
+  ocs2::matrix_t tempKGuu;
+  for (int k = (Nt - 2); k > -1; --k) {
+    gx.noalias() = (q[k] + A[k].transpose() * p[k + 1]).eval();
+    gu.noalias() = (r[k] + B[k].transpose() * p[k + 1]).eval();
 
     // iLQR (Gauss-Newton) version
-    Gxx = Q + A.transpose() * P[k + 1] * A;
-    Guu = R + B.transpose() * P[k + 1] * B;
-    Gxu = A.transpose() * P[k + 1] * B;
-    Gux = B.transpose() * P[k + 1] * A;
+    tempAP.noalias() = (A[k].transpose() * P[k + 1]).eval();
+    tempBP.noalias() = (B[k].transpose() * P[k + 1]).eval();
+    Gxx.noalias() = (Q + tempAP * A[k]).eval();
+    Guu.noalias() = (R + tempBP * B[k]).eval();
+    Gxu.noalias() = (tempAP * B[k]).eval();
+    Gux.noalias() = (tempBP * A[k]).eval();
 
-    // regularization
-    double beta = 0.1;
+    G.block(0, 0, 4, 4).noalias() = Gxx;
+    G.block(0, 4, 4, 1).noalias() = Gxu;
+    G.block(4, 0, 1, 4).noalias() = Gux;
+    G.block(4, 4, 1, 1).noalias() = Guu;
 
-    G.block(0, 0, 4, 4) = Gxx;
-    G.block(0, 4, 4, 1) = Gxu;
-    G.block(4, 0, 1, 4) = Gux;
-    G(4, 4) = Guu;
+    d[k].noalias() = (Guu.inverse() * gu).eval();
+    K[k].noalias() = (Guu.inverse() * Gux).eval();
 
-    while (!isPositiveDefinite(G))
-    {
-      Gxx += A.transpose() * beta * I * A;
-      Guu += B.transpose() * beta * I * B;
-      Gxu += A.transpose() * beta * I * B;
-      Gux += B.transpose() * beta * I * A;
-      beta *= 2;
+    tempKGuu.noalias() = (K[k].transpose() * Guu).eval();
+    p[k].noalias() = (gx - K[k].transpose() * gu + tempKGuu * d[k] - Gxu * d[k]).eval();
+    P[k].noalias() = (Gxx + tempKGuu * K[k] - Gxu * K[k] - K[k].transpose() * Gux).eval();
 
-      G.block(0, 0, 4, 4) = Gxx;
-      G.block(0, 4, 4, 1) = Gxu;
-      G.block(4, 0, 1, 4) = Gux;
-      G(4, 4) = Guu;
-    }
-
-    d[k] = gu / Guu;
-    K[k] = Gux / Guu;
-
-    p[k] = gx - K[k].transpose() * gu + K[k].transpose() * Guu * d[k] - Gxu * d[k];
-    P[k] = Gxx + K[k].transpose() * Guu * K[k] - Gxu * K[k] - K[k].transpose() * Gux;
-
-    delta_J += gu * d[k];
+    delta_J += (gu.transpose() * d[k]).value();
   }
 
   return delta_J;
 }
 
-double Cartpole_iLQR::vector_max(const vector<double>& v)
-{
-  double v_max = 0;
-  for (int i = 0; i < v.size(); ++i)
-  {
-    if (v_max < fabs(v[i]))
-      v_max = fabs(v[i]);
+// line search
+double Cartpole_iLQR::line_search(double delta_J, double J) {
+  double alpha = 1.0;
+  double Jn = 1.0e+9;
+  std::vector<ocs2::vector_t> xn(Nt);
+  std::vector<ocs2::vector_t> un(Nt - 1);
+  xn[0] = xtraj[0];
+
+  while (Jn > (J - beta * alpha * delta_J)) {
+    for (int k = 0; k < (Nt - 1); ++k) {
+      un[k] = utraj[k] - alpha * d[k] - K[k] * (xn[k] - xtraj[k]);
+      const ocs2::vector_t stateInput = (ocs2::vector_t(xn[k].rows() + un[k].rows()) << xn[k], un[k]).finished();
+      xn[k + 1] = systemFlowMapCppAdInterfacePtr_[k]->getFunctionValue(stateInput);
+    }
+    alpha = sigma * alpha;
+    Jn = cost(xn, un);
   }
-  return v_max;
+  xtraj = xn;
+  utraj = un;
+
+  return Jn;
 }
 
-void Cartpole_iLQR::iLQR_algorithm(const Matrix<double, 4, 1>& xcur, const double& ucur)
-{
-  // std::chrono::time_point<std::chrono::system_clock> t_start =
-  //     std::chrono::system_clock::now();
-
-  for (int i = 0; i < Nt - 1; ++i)
-  {
-    xtraj.col(i) = xcur;
-    utraj(i) = ucur;
-  }
-  xtraj.col(Nt - 1) = xcur;
-
-  // initialize p and d
-  for (int i = 0; i < Nt - 1; ++i)
-  {
-    p[i].setOnes();
-    d[i] = 1;
-  }
-  p[Nt - 1].setOnes();
-
-  // Initial Rollout
-  for (int k = 0; k < (Nt - 1); ++k)
-  {
-    xtraj.col(k + 1) = cartpole_dynamics->cartpole_dynamics_integrate<double>(xtraj.col(k), utraj.col(k));
-  }
-  double J = cost(xtraj, utraj);
-
-  // DDP Algorithm
-  double delta_J = 1.0;
-
-  Matrix<double, 4, Dynamic> xn(nx, Nt);
-  Matrix<double, 1, Dynamic> un(Nt - 1);
-
+void Cartpole_iLQR::solve() {
   int iter = 0;
-  while (vector_max(d) > 1e-3)
-  {
+  double J = cost(xtraj, utraj);
+  double delta_J = 1.0e+9;
+  std::vector<ocs2::scalar_t> derivativeTime;
+  std::vector<ocs2::scalar_t> backwardPassTime;
+  std::vector<ocs2::scalar_t> lineSeachTime;
+  while (delta_J > 1e-2) {
     iter++;
+    // compute derivatives
+    std::chrono::time_point<std::chrono::system_clock> derivative_time_record_start = std::chrono::system_clock::now();
+    calDerivatives();
+    std::chrono::time_point<std::chrono::system_clock> derivative_time_record_end = std::chrono::system_clock::now();
+    derivativeTime.push_back(
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(derivative_time_record_end - derivative_time_record_start).count()) / 1.0e3);
+
     // Backward Pass
+    std::chrono::time_point<std::chrono::system_clock> backward_pass_start = std::chrono::system_clock::now();
     delta_J = backward_pass();
+    std::chrono::time_point<std::chrono::system_clock> backward_pass_end = std::chrono::system_clock::now();
+    backwardPassTime.push_back(
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(backward_pass_end - backward_pass_start).count()) / 1.0e3);
 
     // Forward rollout with line search
-    xn.col(0) = xtraj.col(0);
-    double alpha = 1.0;
+    std::chrono::time_point<std::chrono::system_clock> line_search_start = std::chrono::system_clock::now();
+    J = line_search(delta_J, J);
+    std::chrono::time_point<std::chrono::system_clock> line_search_end = std::chrono::system_clock::now();
+    lineSeachTime.push_back(static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(line_search_end - line_search_start).count()) / 1.0e3);
 
-    for (int k = 0; k < (Nt - 1); ++k)
-    {
-      un[k] = utraj[k] - alpha * d[k] - K[k] * (xn.col(k) - xtraj.col(k));
-      xn.col(k + 1) = cartpole_dynamics->cartpole_dynamics_integrate<double>(xn.col(k), un.col(k));
-    }
-    double Jn = cost(xn, un);
-
-    // line search
-    while (Jn > (J - 1e-2 * alpha * delta_J))
-    {
-      alpha = 0.5 * alpha;
-      for (int k = 0; k < (Nt - 1); ++k)
-      {
-        un[k] = utraj[k] - alpha * d[k] - K[k] * (xn.col(k) - xtraj.col(k));
-        xn.col(k + 1) = cartpole_dynamics->cartpole_dynamics_integrate<double>(xn.col(k), un.col(k));
-      }
-      Jn = cost(xn, un);
-    }
-
-    J = Jn;
-    xtraj = xn;
-    utraj = un;
     Jtraj.push_back(J);
   }
-  // std::chrono::time_point<std::chrono::system_clock> t_end =
-  //     std::chrono::system_clock::now();
-  // double time_record =
-  //     std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start)
-  //         .count();
-  // std::cout << "cal_time: " << time_record / 1000 << "\n";
-  // std::cout << "iLQR completed! iter = " << iter << std::endl;
+
+  double derivativeTimeTotal = 0;
+  double backwardPassTimeTotal = 0;
+  double lineSeachTimeTotal = 0;
+  for (int i = 0; i < iter - 1; ++i) {
+    derivativeTimeTotal += derivativeTime[i];
+    backwardPassTimeTotal += backwardPassTime[i];
+    lineSeachTimeTotal += lineSeachTime[i];
+  }
+  derivativeTime_.push_back(derivativeTimeTotal);
+  backwardPassTime_.push_back(backwardPassTimeTotal);
+  lineSeachTime_.push_back(lineSeachTimeTotal);
+}
+
+void Cartpole_iLQR::reset_solver(const ocs2::vector_t& xcur) {
+  if (first_run) {
+    // Initial Rollout
+    xtraj[0] = xcur;
+    for (int k = 0; k < (Nt - 1); ++k) {
+      utraj[k] = ocs2::vector_t::Zero(nu);
+      const ocs2::vector_t stateInput = (ocs2::vector_t(xtraj[k].rows() + utraj[k].rows()) << xtraj[k], utraj[k]).finished();
+      xtraj[k + 1] = systemFlowMapCppAdInterfacePtr_[k]->getFunctionValue(stateInput);
+    }
+    // first_run = false;
+  } else {
+    for (int k = 0; k < (Nt - 2); ++k) {
+      xtraj[k] = xtraj[k + 1];
+      utraj[k] = utraj[k + 1];
+    }
+    xtraj[0] = xcur;
+  }
+
+  // initialize K and d
+  for (int i = 0; i < Nt - 1; ++i) {
+    d[i].setOnes();
+    K[i].setZero();
+  }
+}
+
+void Cartpole_iLQR::iLQR_algorithm(const ocs2::vector_t& xcur) {
+  // reset
+  reset_solver(xcur);
+
+  // DDP Algorithm
+  solve();
 }
 
 // 最优状态和控制轨迹
-void Cartpole_iLQR::traj_plot()
-{
+void Cartpole_iLQR::traj_plot() {
   // 绘制J
   std::vector<double> J_length;
-  for (size_t i = 0; i < Jtraj.size(); ++i)
-  {
+  for (size_t i = 0; i < Jtraj.size(); ++i) {
     J_length.push_back(i);
   }
   plt::named_plot("cost", J_length, Jtraj, "-y");
@@ -257,74 +309,28 @@ void Cartpole_iLQR::traj_plot()
   plt::ylabel("J");
   plt::title("cost traj for Cart-Pole Problem");
   plt::show();
-  // clear
-  Jtraj.clear();
-
-  // 绘制状态轨迹
-  std::vector<double> time_series(Nt - 1);
-  for (size_t i = 0; i < Nt - 1; ++i)
-  {
-    time_series[i] = i * dt;
-  }
-  std::vector<std::string> line_type = {"-b", "-k", "-r", "-g"};
-  std::vector<std::string> plot_name = {"pos", "theta", "vel", "omega"};
-  std::vector<double> state_series(Nt - 1);
-  for (int k = 0; k < nx; ++k)
-  {
-    for (size_t i = 0; i < Nt - 1; ++i)
-    {
-      state_series[i] = xtraj(k, i);
-    }
-    plt::named_plot(plot_name[k], time_series, state_series, line_type[k]);
-  }
-  plt::legend();
-  plt::xlabel("Time");
-  plt::ylabel("Value");
-  plt::title("Optimal State Trajectories for Cart-Pole Problem");
-  plt::show();
-
-  // 绘制控制轨迹
-  std::vector<double> control_series(Nt - 1);
-  for (int i = 0; i < Nt - 1; ++i)
-  {
-    control_series[i] = utraj(i);
-  }
-  plt::named_plot("control", time_series, control_series, "r--");
-  plt::legend();
-  plt::xlabel("Time");
-  plt::ylabel("Value");
-  plt::title("Optimal Control Trajectories for Cart-Pole Problem");
-  plt::show();
 }
 
-void Cartpole_iLQR::get_control(mjData* d)
-{
+void Cartpole_iLQR::get_control(mjData* d) {
   int waiting_time = 100;
   static int counter = 0;
   static int index = 0;
 
-  if (counter < waiting_time)
-  {
+  if (counter < waiting_time) {
     counter++;
-  }
-  else if ((counter - waiting_time) % (int)(step / 0.002) == 0)
-  {
+  } else if ((counter - waiting_time) % (int)(step / 0.002) == 0) {
     // std::cout << "********** iLQR *********" << std::endl;
-    Matrix<double, 4, 1> _xcur =
-        Matrix<double, 4, 1>(d->sensordata[0], d->sensordata[1], d->sensordata[2], d->sensordata[3]);
-    double _ucur = 1e-4;
-    iLQR_algorithm(_xcur, _ucur);
+    ocs2::vector_t _xcur(4);
+    _xcur << d->sensordata[0], d->sensordata[1], d->sensordata[2], d->sensordata[3];
+    iLQR_algorithm(_xcur);
     index = 0;
     counter++;
-  }
-  else
-  {
+  } else {
     // 设置控制力
-    d->ctrl[0] = fmin(fmax(utraj[index], -100), 100);
+    d->ctrl[0] = fmin(fmax(utraj[index].value(), -100), 100);
     d->ctrl[1] = 0;  // pole没有直接控制
     counter++;
-    if (counter % (int)(dt / 0.002) == 0)
-    {
+    if (counter % (int)(dt / 0.002) == 0) {
       index++;
     }
   }

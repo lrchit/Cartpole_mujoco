@@ -29,3 +29,9 @@ initial_state:
 dt: 0.005
 step: 0.01
 Tfinal: 0.5
+
+# line search
+sigma: 0.5
+beta: 1.0e-2
+
+verbose_cal_time: true
