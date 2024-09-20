@@ -14,6 +14,31 @@
 
 namespace plt = matplotlibcpp;
 
+struct DDP_Matrix {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  ocs2::vector_t Qx;
+  ocs2::vector_t Qu;
+  ocs2::matrix_t Qxx;
+  ocs2::matrix_t Quu;
+  ocs2::matrix_t Quu_inverse;
+  ocs2::matrix_t Qxu;
+  ocs2::matrix_t Qux;
+};
+
+struct Derivatives {
+  // cost 2nd order approximation
+  std::vector<ocs2::vector_t> lx;
+  std::vector<ocs2::vector_t> lu;
+  std::vector<ocs2::matrix_t> lxx;
+  std::vector<ocs2::matrix_t> lxu;
+  std::vector<ocs2::matrix_t> luu;
+
+  // dynamics 1st order approximation
+  std::vector<ocs2::matrix_t> fx;
+  std::vector<ocs2::vector_t> fu;
+};
+
 class Cartpole_iLQR {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   public:
@@ -64,18 +89,17 @@ class Cartpole_iLQR {
   std::vector<ocs2::vector_t> d;
   std::vector<ocs2::matrix_t> K;
 
-  std::vector<ocs2::vector_t> q;
-  std::vector<ocs2::vector_t> r;
-  std::vector<ocs2::matrix_t> A;
-  std::vector<ocs2::vector_t> B;
+  DDP_Matrix ddp_matrix;
+  Derivatives derivatives;
 
   // line search param
   double sigma;
   double beta;
-
-  std::vector<std::shared_ptr<ocs2::CppAdInterface>> systemFlowMapCppAdInterfacePtr_;  //!< CppAd code gen
+  double tolerance;
 
   std::vector<ocs2::scalar_t> derivativeTime_;
   std::vector<ocs2::scalar_t> backwardPassTime_;
   std::vector<ocs2::scalar_t> lineSeachTime_;
+
+  std::vector<std::shared_ptr<Cartpole_Dynamics>> cartpole_dynamics_;
 };

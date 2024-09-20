@@ -34,4 +34,7 @@ Tfinal: 0.5
 sigma: 0.5
 beta: 1.0e-2
 
+# convergence
+tolerance: 1.0e-2
+
 verbose_cal_time: true

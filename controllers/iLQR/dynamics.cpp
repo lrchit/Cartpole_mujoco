@@ -7,9 +7,31 @@ Cartpole_Dynamics::Cartpole_Dynamics(double _dt, double _m_cart, double _m_pole,
   m_pole = _m_pole;
   l = _l;
   g = 9.81;
+
+  auto systemFlowMapFunc = [&](const ocs2::ad_vector_t& x, ocs2::ad_vector_t& y) {
+    ocs2::ad_vector_t state = x.head(4);
+    ocs2::ad_vector_t input = x.tail(1);
+    y = cartpole_discrete_dynamics<ocs2::ad_scalar_t>(state, input);
+  };
+  systemFlowMapCppAdInterfacePtr_.reset(new ocs2::CppAdInterface(systemFlowMapFunc, 5, "cartpole_dynamics_systemFlowMap", "../cppad_generated"));
+  if (true) {
+    systemFlowMapCppAdInterfacePtr_->createModels(ocs2::CppAdInterface::ApproximationOrder::First, true);
+  } else {
+    systemFlowMapCppAdInterfacePtr_->loadModelsIfAvailable(ocs2::CppAdInterface::ApproximationOrder::First, true);
+  }
 }
 
 Cartpole_Dynamics::~Cartpole_Dynamics(){};
+
+ocs2::vector_t Cartpole_Dynamics::getValue(const ocs2::vector_t& x, const ocs2::vector_t& u) {
+  const ocs2::vector_t stateInput = (ocs2::vector_t(x.rows() + u.rows()) << x, u).finished();
+  return systemFlowMapCppAdInterfacePtr_->getFunctionValue(stateInput);
+}
+
+ocs2::matrix_t Cartpole_Dynamics::getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u) {
+  const ocs2::vector_t stateInput = (ocs2::vector_t(x.rows() + u.rows()) << x, u).finished();
+  return systemFlowMapCppAdInterfacePtr_->getJacobian(stateInput);
+}
 
 template <typename T>
 ocs2::vector_s_t<T> Cartpole_Dynamics::cartpole_dynamics_model(const ocs2::vector_s_t<T>& x, const ocs2::vector_s_t<T>& u) {
@@ -36,7 +58,7 @@ ocs2::vector_s_t<T> Cartpole_Dynamics::cartpole_dynamics_model(const ocs2::vecto
 }
 
 template <typename T>
-ocs2::vector_s_t<T> Cartpole_Dynamics::cartpole_dynamics_integrate(const ocs2::vector_s_t<T>& x, const ocs2::vector_s_t<T>& u) {
+ocs2::vector_s_t<T> Cartpole_Dynamics::cartpole_discrete_dynamics(const ocs2::vector_s_t<T>& x, const ocs2::vector_s_t<T>& u) {
   ocs2::vector_s_t<T> k1, k2, k3, k4, x_next;
   // 计算k1
   k1 = cartpole_dynamics_model<T>(x, u) * T(dt);
@@ -55,5 +77,5 @@ ocs2::vector_s_t<T> Cartpole_Dynamics::cartpole_dynamics_integrate(const ocs2::v
 
 template ocs2::vector_t Cartpole_Dynamics::cartpole_dynamics_model(const ocs2::vector_t&, const ocs2::vector_t&);
 template ocs2::ad_vector_t Cartpole_Dynamics::cartpole_dynamics_model(const ocs2::ad_vector_t&, const ocs2::ad_vector_t&);
-template ocs2::vector_t Cartpole_Dynamics::cartpole_dynamics_integrate(const ocs2::vector_t&, const ocs2::vector_t&);
-template ocs2::ad_vector_t Cartpole_Dynamics::cartpole_dynamics_integrate(const ocs2::ad_vector_t&, const ocs2::ad_vector_t&);
+template ocs2::vector_t Cartpole_Dynamics::cartpole_discrete_dynamics(const ocs2::vector_t&, const ocs2::vector_t&);
+template ocs2::ad_vector_t Cartpole_Dynamics::cartpole_discrete_dynamics(const ocs2::ad_vector_t&, const ocs2::ad_vector_t&);

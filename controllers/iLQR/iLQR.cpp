@@ -10,21 +10,23 @@ Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
   R.setZero(nu, nu);
 
   YAML::Node config = YAML::LoadFile(yaml_name);
-  // Initialize weight matrix
-  Q(0, 0) = config["Q"]["q1"].as<double>();
-  Q(1, 1) = config["Q"]["q2"].as<double>();
-  Q(2, 2) = config["Q"]["q3"].as<double>();
-  Q(3, 3) = config["Q"]["q4"].as<double>();
-  Qn(0, 0) = config["Qn"]["q1"].as<double>();
-  Qn(1, 1) = config["Qn"]["q2"].as<double>();
-  Qn(2, 2) = config["Qn"]["q3"].as<double>();
-  Qn(3, 3) = config["Qn"]["q4"].as<double>();
-  R(0, 0) = config["R"]["r1"].as<double>();
 
   dt = config["dt"].as<double>();
   step = config["step"].as<double>();
   Tfinal = config["Tfinal"].as<double>();
   Nt = (int)(Tfinal / dt) + 1;
+
+  // Initialize weight matrix
+  Q(0, 0) = config["Q"]["q1"].as<double>();
+  Q(1, 1) = config["Q"]["q2"].as<double>();
+  Q(2, 2) = config["Q"]["q3"].as<double>();
+  Q(3, 3) = config["Q"]["q4"].as<double>();
+  Q = Q * dt;
+  Qn(0, 0) = config["Qn"]["q1"].as<double>();
+  Qn(1, 1) = config["Qn"]["q2"].as<double>();
+  Qn(2, 2) = config["Qn"]["q3"].as<double>();
+  Qn(3, 3) = config["Qn"]["q4"].as<double>();
+  R(0, 0) = config["R"]["r1"].as<double>();
 
   m_cart = config["m_cart"].as<double>();
   m_pole = config["m_pole"].as<double>();
@@ -32,37 +34,25 @@ Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
 
   sigma = config["sigma"].as<double>();
   beta = config["beta"].as<double>();
+  tolerance = config["tolerance"].as<double>();
 
   verbose_cal_time = config["verbose_cal_time"].as<bool>();
-
-  Cartpole_Dynamics* cartpole_dynamics;
-  cartpole_dynamics = new Cartpole_Dynamics(dt, m_cart, m_pole, l / 2);
-  std::shared_ptr<ocs2::CppAdInterface> systemFlowMapCppAdInterfacePtr;
-  auto systemFlowMapFunc = [&](const ocs2::ad_vector_t& x, ocs2::ad_vector_t& y) {
-    ocs2::ad_vector_t state = x.head(4);
-    ocs2::ad_vector_t input = x.tail(1);
-    y = cartpole_dynamics->cartpole_dynamics_integrate<ocs2::ad_scalar_t>(state, input);
-  };
-  systemFlowMapCppAdInterfacePtr.reset(new ocs2::CppAdInterface(systemFlowMapFunc, 5, "cartpole_dynamics_systemFlowMap", "../cppad_generated"));
-  if (true) {
-    systemFlowMapCppAdInterfacePtr->createModels(ocs2::CppAdInterface::ApproximationOrder::First, true);
-  } else {
-    systemFlowMapCppAdInterfacePtr->loadModelsIfAvailable(ocs2::CppAdInterface::ApproximationOrder::First, true);
-  }
-  for (int i = 0; i < Nt; ++i) {
-    systemFlowMapCppAdInterfacePtr_.push_back(systemFlowMapCppAdInterfacePtr);
-  }
 
   p.resize(Nt);
   P.resize(Nt);
   d.resize(Nt - 1);
   K.resize(Nt - 1);
-  q.resize(Nt - 1);
-  r.resize(Nt - 1);
-  A.resize(Nt - 1);
-  B.resize(Nt - 1);
+  derivatives.lx.resize(Nt);
+  derivatives.lu.resize(Nt - 1);
+  derivatives.lxx.resize(Nt);
+  derivatives.lxu.resize(Nt - 1);
+  derivatives.luu.resize(Nt - 1);
+  derivatives.fx.resize(Nt - 1);
+  derivatives.fu.resize(Nt - 1);
   xtraj.resize(Nt);
   utraj.resize(Nt - 1);
+  std::shared_ptr<Cartpole_Dynamics> cartpole_dynamics;
+  cartpole_dynamics.reset(new Cartpole_Dynamics(dt, m_cart, m_pole, l / 2));
   for (int i = 0; i < Nt - 1; ++i) {
     p[i].setZero(nx, nu);
     P[i].setZero(nx, nx);
@@ -70,6 +60,7 @@ Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
     K[i].setZero(nu, nx);
     xtraj[i].setZero(nx);
     utraj[i].setZero(nu);
+    cartpole_dynamics_.push_back(cartpole_dynamics);
   }
   p[Nt - 1].setZero(nx, nu);
   P[Nt - 1].setZero(nx, nx);
@@ -124,7 +115,7 @@ bool Cartpole_iLQR::isPositiveDefinite(const ocs2::matrix_t& M) {
   return true;  // 所有特征值都大于零，则矩阵是正定的
 }
 
-// cost function
+// cost derivatives.function
 double Cartpole_iLQR::cost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj) {
   double J = 0.0;
   for (int k = 0; k < (Nt - 1); ++k)
@@ -137,59 +128,44 @@ void Cartpole_iLQR::calDerivatives() {
   // #pragma omp parallel for num_threads(4)
   for (int k = (Nt - 2); k > -1; --k) {
     // Calculate derivatives
-    q[k].noalias() = Q * (xtraj[k] - xgoal);
-    r[k].noalias() = R * utraj[k];
+    derivatives.lx[k].noalias() = Q * (xtraj[k] - xgoal);
+    derivatives.lu[k].noalias() = R * utraj[k];
+    derivatives.lxx[k].noalias() = Q;
+    derivatives.lxu[k].noalias() = ocs2::matrix_t::Zero(nx, nu);
+    derivatives.luu[k].noalias() = R;
 
     // df/dx for A and df/du for B
-    const ocs2::vector_t stateInput = (ocs2::vector_t(xtraj[k].rows() + utraj[k].rows()) << xtraj[k], utraj[k]).finished();
-    const ocs2::matrix_t jacobian = systemFlowMapCppAdInterfacePtr_[k]->getJacobian(stateInput);
-
-    // df/dx for A and df/du for B
-    A[k].noalias() = jacobian.block(0, 0, 4, 4);
-    B[k].noalias() = jacobian.block(0, 4, 4, 1);
+    const ocs2::matrix_t jacobian = cartpole_dynamics_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
+    derivatives.fx[k].noalias() = jacobian.block(0, 0, 4, 4);
+    derivatives.fu[k].noalias() = jacobian.block(0, 4, 4, 1);
   }
+  derivatives.lx[Nt - 1].noalias() = Qn * (xtraj[Nt - 1] - xgoal);
+  derivatives.lxx[Nt - 1].noalias() = Qn;
 }
 
 double Cartpole_iLQR::backward_pass() {
   double delta_J = 0.0;
-  p[Nt - 1].noalias() = Qn * (xtraj[Nt - 1] - xgoal);
-  P[Nt - 1].noalias() = Qn;
+  p[Nt - 1].noalias() = derivatives.lx[Nt - 1];
+  P[Nt - 1].noalias() = derivatives.lxx[Nt - 1];
 
-  ocs2::vector_t gx;
-  ocs2::vector_t gu;
-  ocs2::matrix_t Gxx;
-  ocs2::vector_t Guu;
-  ocs2::vector_t Gxu;
-  ocs2::matrix_t Gux;
-  ocs2::matrix_t G(nx + nu, nx + nu);
-  ocs2::matrix_t tempAP;
-  ocs2::matrix_t tempBP;
-  ocs2::matrix_t tempKGuu;
   for (int k = (Nt - 2); k > -1; --k) {
-    gx.noalias() = (q[k] + A[k].transpose() * p[k + 1]).eval();
-    gu.noalias() = (r[k] + B[k].transpose() * p[k + 1]).eval();
+    ddp_matrix.Qx.noalias() = (derivatives.lx[k] + derivatives.fx[k].transpose() * p[k + 1]).eval();
+    ddp_matrix.Qu.noalias() = (derivatives.lu[k] + derivatives.fu[k].transpose() * p[k + 1]).eval();
 
     // iLQR (Gauss-Newton) version
-    tempAP.noalias() = (A[k].transpose() * P[k + 1]).eval();
-    tempBP.noalias() = (B[k].transpose() * P[k + 1]).eval();
-    Gxx.noalias() = (Q + tempAP * A[k]).eval();
-    Guu.noalias() = (R + tempBP * B[k]).eval();
-    Gxu.noalias() = (tempAP * B[k]).eval();
-    Gux.noalias() = (tempBP * A[k]).eval();
+    ddp_matrix.Qxx.noalias() = (derivatives.lxx[k] + derivatives.fx[k].transpose() * P[k + 1] * derivatives.fx[k]).eval();
+    ddp_matrix.Quu.noalias() = (derivatives.luu[k] + derivatives.fu[k].transpose() * P[k + 1] * derivatives.fu[k]).eval();
+    ddp_matrix.Quu_inverse = ddp_matrix.Quu.ldlt().solve(ocs2::matrix_t::Identity(nu, nu));
+    ddp_matrix.Qxu.noalias() = (derivatives.fx[k].transpose() * P[k + 1] * derivatives.fu[k]).eval();
+    ddp_matrix.Qux.noalias() = ddp_matrix.Qxu.transpose().eval();
 
-    G.block(0, 0, 4, 4).noalias() = Gxx;
-    G.block(0, 4, 4, 1).noalias() = Gxu;
-    G.block(4, 0, 1, 4).noalias() = Gux;
-    G.block(4, 4, 1, 1).noalias() = Guu;
+    d[k].noalias() = (ddp_matrix.Quu_inverse * ddp_matrix.Qu).eval();
+    K[k].noalias() = (ddp_matrix.Quu_inverse * ddp_matrix.Qux).eval();
 
-    d[k].noalias() = (Guu.inverse() * gu).eval();
-    K[k].noalias() = (Guu.inverse() * Gux).eval();
+    p[k].noalias() = (ddp_matrix.Qx - ddp_matrix.Qxu * d[k]).eval();
+    P[k].noalias() = (ddp_matrix.Qxx - ddp_matrix.Qxu * K[k]).eval();
 
-    tempKGuu.noalias() = (K[k].transpose() * Guu).eval();
-    p[k].noalias() = (gx - K[k].transpose() * gu + tempKGuu * d[k] - Gxu * d[k]).eval();
-    P[k].noalias() = (Gxx + tempKGuu * K[k] - Gxu * K[k] - K[k].transpose() * Gux).eval();
-
-    delta_J += (gu.transpose() * d[k]).value();
+    delta_J += (ddp_matrix.Qu.transpose() * d[k]).value();
   }
 
   return delta_J;
@@ -206,8 +182,7 @@ double Cartpole_iLQR::line_search(double delta_J, double J) {
   while (Jn > (J - beta * alpha * delta_J)) {
     for (int k = 0; k < (Nt - 1); ++k) {
       un[k] = utraj[k] - alpha * d[k] - K[k] * (xn[k] - xtraj[k]);
-      const ocs2::vector_t stateInput = (ocs2::vector_t(xn[k].rows() + un[k].rows()) << xn[k], un[k]).finished();
-      xn[k + 1] = systemFlowMapCppAdInterfacePtr_[k]->getFunctionValue(stateInput);
+      xn[k + 1] = cartpole_dynamics_[k]->getValue(xn[k], un[k]);
     }
     alpha = sigma * alpha;
     Jn = cost(xn, un);
@@ -225,7 +200,7 @@ void Cartpole_iLQR::solve() {
   std::vector<ocs2::scalar_t> derivativeTime;
   std::vector<ocs2::scalar_t> backwardPassTime;
   std::vector<ocs2::scalar_t> lineSeachTime;
-  while (delta_J > 1e-2) {
+  while (delta_J > tolerance) {
     iter++;
     // compute derivatives
     std::chrono::time_point<std::chrono::system_clock> derivative_time_record_start = std::chrono::system_clock::now();
@@ -269,8 +244,7 @@ void Cartpole_iLQR::reset_solver(const ocs2::vector_t& xcur) {
     xtraj[0] = xcur;
     for (int k = 0; k < (Nt - 1); ++k) {
       utraj[k] = ocs2::vector_t::Zero(nu);
-      const ocs2::vector_t stateInput = (ocs2::vector_t(xtraj[k].rows() + utraj[k].rows()) << xtraj[k], utraj[k]).finished();
-      xtraj[k + 1] = systemFlowMapCppAdInterfacePtr_[k]->getFunctionValue(stateInput);
+      xtraj[k + 1] = cartpole_dynamics_[k]->getValue(xtraj[k], utraj[k]);
     }
     // first_run = false;
   } else {
@@ -339,8 +313,7 @@ void Cartpole_iLQR::get_control(mjData* d) {
   // if (counter < waiting_time) {
   //   counter++;
   // } else if (counter == waiting_time) {
-  //   Matrix<double,4,1> _xcur = Matrix<double,4,1>(d->sensordata[0], d->sensordata[1],
-  //                             d->sensordata[2], d->sensordata[3]);
+  //   Matrix<double, 4, 1> _xcur = Matrix<double, 4, 1>(d->sensordata[0], d->sensordata[1], d->sensordata[2], d->sensordata[3]);
   //   double _ucur = 1e-4;
   //   iLQR_algorithm(_xcur, _ucur);
   //   std::cout << "xcur = " << _xcur.transpose() << "\n ";
@@ -349,7 +322,7 @@ void Cartpole_iLQR::get_control(mjData* d) {
   // } else if ((counter - waiting_time) % (int)(Tfinal / 0.002) != 0) {
   //   // 设置控制力
   //   d->ctrl[0] = fmin(fmax(utraj[index], -100), 100);
-  //   d->ctrl[1] = 0; // pole没有直接控制
+  //   d->ctrl[1] = 0;  // pole没有直接控制
   //   counter++;
   //   if (counter % (int)(dt / 0.002) == 0) {
   //     std::cout << "utraj_" << index << " = " << utraj[index] << "\n ";
