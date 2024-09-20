@@ -1,8 +1,7 @@
 
 #include <cartpole_dynamics.h>
 
-Cartpole_Dynamics::Cartpole_Dynamics(double _dt, YAML::Node config) {
-  dt = _dt;
+Cartpole_Dynamics::Cartpole_Dynamics(YAML::Node config) {
   m_cart = config["m_cart"].as<double>();
   m_pole = config["m_pole"].as<double>();
   l = config["l"].as<double>() / 2;
@@ -10,20 +9,7 @@ Cartpole_Dynamics::Cartpole_Dynamics(double _dt, YAML::Node config) {
   nx = 4;
   nu = 1;
 
-  // Initialize weight matrix
-  Q.setZero(nx, nx);
-  Qn.setZero(nx, nx);
-  R.setZero(nu, nu);
-  Q(0, 0) = config["Q"]["q1"].as<double>();
-  Q(1, 1) = config["Q"]["q2"].as<double>();
-  Q(2, 2) = config["Q"]["q3"].as<double>();
-  Q(3, 3) = config["Q"]["q4"].as<double>();
-  Q = Q * dt;
-  Qn(0, 0) = config["Qn"]["q1"].as<double>();
-  Qn(1, 1) = config["Qn"]["q2"].as<double>();
-  Qn(2, 2) = config["Qn"]["q3"].as<double>();
-  Qn(3, 3) = config["Qn"]["q4"].as<double>();
-  R(0, 0) = config["R"]["r1"].as<double>();
+  dt = config["dt"].as<double>();
 
   auto systemFlowMapFunc = [&](const ocs2::ad_vector_t& x, ocs2::ad_vector_t& y) {
     ocs2::ad_vector_t state = x.head(4);
@@ -38,7 +24,7 @@ Cartpole_Dynamics::Cartpole_Dynamics(double _dt, YAML::Node config) {
   }
 }
 
-Cartpole_Dynamics::~Cartpole_Dynamics(){};
+Cartpole_Dynamics::~Cartpole_Dynamics() {}
 
 template <typename T>
 ocs2::vector_s_t<T> Cartpole_Dynamics::cartpole_dynamics_model(const ocs2::vector_s_t<T>& x, const ocs2::vector_s_t<T>& u) {

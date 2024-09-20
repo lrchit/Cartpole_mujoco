@@ -49,7 +49,7 @@ include_directories(
     simulate
     controllers/iLQR
     auto_diff
-    examples
+    examples/common
     examples/cartpole
     ${PYTHON_INCLUDE_DIRS}
 )
@@ -78,14 +78,14 @@ endif()
 aux_source_directory(simulate SIM_SRC)
 aux_source_directory(controllers/iLQR ILQR_SRC)
 aux_source_directory(auto_diff AUTO_DIFF_SRC)
-aux_source_directory(examples EXAMPLE_SRC)
+aux_source_directory(examples/common COMMON_SRC)
 aux_source_directory(examples/cartpole CARTPOLE_SRC)
 
 add_executable(main main.cpp
                     ${ILQR_SRC}
                     ${SIM_SRC}
                     ${AUTO_DIFF_SRC}
-                    ${EXAMPLE_SRC}
+                    ${COMMON_SRC}
                     ${CARTPOLE_SRC}
 )
 

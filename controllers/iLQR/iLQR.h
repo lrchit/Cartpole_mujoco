@@ -10,6 +10,7 @@
 
 #include "pd_controller.h"
 #include <dynamics.h>
+#include <cost.h>
 
 #define pi 3.1416
 
@@ -28,6 +29,8 @@ struct DDP_Matrix {
 };
 
 struct Derivatives {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
   // cost 2nd order approximation
   std::vector<ocs2::vector_t> lx;
   std::vector<ocs2::vector_t> lu;
@@ -43,7 +46,7 @@ struct Derivatives {
 class iLQR_Solver {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   public:
-  iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model);
+  iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost);
   ~iLQR_Solver();
 
   std::vector<ocs2::vector_t> iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal);
@@ -62,18 +65,16 @@ class iLQR_Solver {
   void traj_plot();
 
   int nx, nu;
-  double dt;
   int Nt;
 
   bool verbose_cal_time = false;
+  int max_iteration = 1000;
 
   std::vector<ocs2::vector_t> xtraj;
   std::vector<ocs2::vector_t> utraj;
   std::vector<double> Jtraj;
   std::vector<ocs2::vector_t> xgoal;
 
-  ocs2::matrix_t Q, Qn;
-  ocs2::matrix_t R;
   std::vector<ocs2::vector_t> p;
   std::vector<ocs2::matrix_t> P;
   std::vector<ocs2::vector_t> d;
@@ -91,5 +92,6 @@ class iLQR_Solver {
   std::vector<ocs2::scalar_t> backwardPassTime_;
   std::vector<ocs2::scalar_t> lineSeachTime_;
 
+  std::vector<std::shared_ptr<Cost>> cost_;
   std::vector<std::shared_ptr<Dynamics>> dynamics_model_;
 };

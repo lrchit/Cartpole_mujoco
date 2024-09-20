@@ -10,7 +10,9 @@
 
 class Cartpole_Dynamics : public Dynamics {
   public:
-  Cartpole_Dynamics(double _dt, YAML::Node config);
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  Cartpole_Dynamics(YAML::Node config);
   ~Cartpole_Dynamics();
 
   virtual ocs2::vector_t getQuasiStaticInput(const ocs2::vector_t& x) override { return ocs2::vector_t::Zero(nu); }

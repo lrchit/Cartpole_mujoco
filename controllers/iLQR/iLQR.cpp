@@ -1,21 +1,21 @@
 
 #include <iLQR.h>
 
-iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model) {
-  dt = config["dt"].as<double>();
+iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost) {
+  double dt = config["dt"].as<double>();
   double Tfinal = config["Tfinal"].as<double>();
   Nt = (int)(Tfinal / dt) + 1;
 
-  // dynamics
-  for (int i = 0; i < Nt - 1; ++i) {
+  max_iteration = config["max_iteration"].as<double>();
+
+  // dynamics and cost
+  for (int i = 0; i < Nt; ++i) {
     dynamics_model_.push_back(dynamics_model);
+    cost_.push_back(cost);
   }
 
   nx = dynamics_model->get_nx();
   nu = dynamics_model->get_nu();
-  Q = dynamics_model->getRunningStateCostMatrix();
-  Qn = dynamics_model->getTerminalStateCostMatrix();
-  R = dynamics_model->getRunningInputCostMatrix();
 
   sigma = config["sigma"].as<double>();
   beta = config["beta"].as<double>();
@@ -78,9 +78,10 @@ iLQR_Solver::~iLQR_Solver() {
 // cost derivatives.function
 double iLQR_Solver::calCost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj) {
   double J = 0.0;
-  for (int k = 0; k < (Nt - 1); ++k)
-    J += (0.5 * (_xtraj[k] - xgoal[k]).transpose() * Q * (_xtraj[k] - xgoal[k]) + 0.5 * _utraj[k].transpose() * R * _utraj[k]).value();
-  J += (0.5 * (_xtraj[Nt - 1] - xgoal[Nt - 1]).transpose() * Qn * (_xtraj[Nt - 1] - xgoal[Nt - 1])).value();
+  for (int k = 0; k < (Nt - 1); ++k) {
+    J += cost_[k]->getValue(_xtraj[k], _utraj[k], xgoal[k]);
+  }
+  J += cost_[Nt - 1]->getValue(_xtraj[Nt - 1], xgoal[Nt - 1]);
   return J;
 }
 
@@ -88,19 +89,16 @@ void iLQR_Solver::calDerivatives() {
   // #pragma omp parallel for num_threads(4)
   for (int k = (Nt - 2); k > -1; --k) {
     // Calculate derivatives
-    derivatives.lx[k].noalias() = Q * (xtraj[k] - xgoal[k]);
-    derivatives.lu[k].noalias() = R * utraj[k];
-    derivatives.lxx[k].noalias() = Q;
-    derivatives.lux[k].noalias() = ocs2::matrix_t::Zero(nu, nx);
-    derivatives.luu[k].noalias() = R;
+    std::tie(derivatives.lx[k], derivatives.lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xgoal[k]);
+    std::tie(derivatives.lxx[k], derivatives.lux[k], derivatives.luu[k]) = cost_[k]->getSecondDerivatives(xtraj[k], utraj[k], xgoal[k]);
 
     // df/dx for A and df/du for B
     const ocs2::matrix_t jacobian = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
     derivatives.fx[k].noalias() = jacobian.leftCols(nx);
     derivatives.fu[k].noalias() = jacobian.rightCols(nu);
   }
-  derivatives.lx[Nt - 1].noalias() = Qn * (xtraj[Nt - 1] - xgoal[Nt - 1]);
-  derivatives.lxx[Nt - 1].noalias() = Qn;
+  std::tie(derivatives.lx[Nt - 1], std::ignore) = cost_[Nt - 1]->getFirstDerivatives(xtraj[Nt - 1], xgoal[Nt - 1]);
+  std::tie(derivatives.lxx[Nt - 1], std::ignore, std::ignore) = cost_[Nt - 1]->getSecondDerivatives(xtraj[Nt - 1], xgoal[Nt - 1]);
 }
 
 double iLQR_Solver::backward_pass() {
@@ -115,7 +113,7 @@ double iLQR_Solver::backward_pass() {
     // iLQR (Gauss-Newton) version
     ddp_matrix.Qxx.noalias() = (derivatives.lxx[k] + derivatives.fx[k].transpose() * P[k + 1] * derivatives.fx[k]).eval();
     ddp_matrix.Quu.noalias() = (derivatives.luu[k] + derivatives.fu[k].transpose() * P[k + 1] * derivatives.fu[k]).eval();
-    ddp_matrix.Quu_inverse = ddp_matrix.Quu.ldlt().solve(ocs2::matrix_t::Identity(nu, nu));
+    ddp_matrix.Quu_inverse.noalias() = ddp_matrix.Quu.ldlt().solve(ocs2::matrix_t::Identity(nu, nu));
     ddp_matrix.Qux.noalias() = derivatives.lux[k] + (derivatives.fu[k].transpose() * P[k + 1] * derivatives.fx[k]).eval();
     ddp_matrix.Qxu.noalias() = ddp_matrix.Qux.transpose().eval();
 
@@ -140,7 +138,9 @@ double iLQR_Solver::line_search(double delta_J, double J) {
   xn[0] = xtraj[0];
 
   while (Jn > (J - beta * alpha * delta_J)) {
-    assert(alpha >= 1e-8; "line search failed to find a feasible rollout");
+    if (alpha <= 1e-8) {
+      throw std::runtime_error("line search failed to find a feasible rollout!");
+    }
     for (int k = 0; k < (Nt - 1); ++k) {
       un[k] = utraj[k] - alpha * d[k] - K[k] * (xn[k] - xtraj[k]);
       xn[k + 1] = dynamics_model_[k]->getValue(xn[k], un[k]);
@@ -161,7 +161,7 @@ void iLQR_Solver::solve() {
   std::vector<ocs2::scalar_t> derivativeTime;
   std::vector<ocs2::scalar_t> backwardPassTime;
   std::vector<ocs2::scalar_t> lineSeachTime;
-  while (delta_J > tolerance) {
+  while (delta_J > tolerance && iter < max_iteration) {
     iter++;
     // compute derivatives
     std::chrono::time_point<std::chrono::system_clock> derivative_time_record_start = std::chrono::system_clock::now();
@@ -182,7 +182,6 @@ void iLQR_Solver::solve() {
     J = line_search(delta_J, J);
     std::chrono::time_point<std::chrono::system_clock> line_search_end = std::chrono::system_clock::now();
     lineSeachTime.push_back(static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(line_search_end - line_search_start).count()) / 1.0e3);
-
     Jtraj.push_back(J);
   }
 

@@ -66,7 +66,7 @@ mjtNum* ctrlnoise = nullptr;
 
 using Seconds = std::chrono::duration<double>;
 
-std::string yaml_name = "../examples/param.yaml";
+std::string yaml_name;
 std::unique_ptr<Cartpole_Example> cartpole_example;
 
 //---------------------------------------- plugin handling
@@ -549,15 +549,22 @@ int main(int argc, char** argv) {
 
   // load yaml
   const char* filename = nullptr;
-  std::string modelFile;
-  YAML::Node config = YAML::LoadFile(yaml_name);
-  if (config["model_file"]) {
-    modelFile = config["model_file"].as<std::string>();
-    filename = modelFile.c_str();  // 转换为 const char*
-  } else {
-    std::cerr << "Model file path not found!" << std::endl;
+  if (argc < 2) {
+    std::cerr << "Usage: ./bin/main <example name>" << std::endl;
+    return 1;
   }
-  cartpole_example.reset(new Cartpole_Example(config));
+  std::string example_name = argv[1];
+  if (example_name == "cartpole") {
+    filename = "../assets/cartpole/cartpole.xml";
+    yaml_name = "../examples/cartpole/param.yaml";
+  } else if (example_name == "quadruped") {
+    filename = "../assets/a1/a1.xml";
+    yaml_name = "../examples/a1/a1.yaml";
+  } else {
+    throw std::runtime_error("example not found!");
+  }
+
+  cartpole_example.reset(new Cartpole_Example());
 
   // start physics thread
   std::thread physicsthreadhandle(&PhysicsThread, sim.get(), filename);

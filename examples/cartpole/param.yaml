@@ -1,6 +1,4 @@
 
-model_file: "../assets/cartpole/cartpole.xml"
-
 # weights
 Q:
   q1: 1
@@ -37,6 +35,7 @@ sigma: 0.5
 beta: 1.0e-2
 
 # convergence
+max_iteration: 10
 tolerance: 1.0e-2
 
 verbose_cal_time: true

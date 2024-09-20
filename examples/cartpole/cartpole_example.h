@@ -2,18 +2,22 @@
 #pragma once
 
 #include "iLQR.h"
+
+#include <cartpole_cost.h>
 #include <cartpole_dynamics.h>
 
 class Cartpole_Example {
   public:
-  Cartpole_Example(YAML::Node config) {
+  Cartpole_Example() {
+    YAML::Node config = YAML::LoadFile("../examples/cartpole/param.yaml");
     step = config["step"].as<double>();
     dt = config["dt"].as<double>();
     double Tfinal = config["Tfinal"].as<double>();
     Nt = (int)(Tfinal / dt) + 1;
-    std::shared_ptr<Cartpole_Dynamics> cartpole_dynamics;
-    cartpole_dynamics.reset(new Cartpole_Dynamics(dt, config));
-    iLQR.reset(new iLQR_Solver(config, cartpole_dynamics));
+
+    std::shared_ptr<Cartpole_Dynamics> cartpole_dynamics = std::make_shared<Cartpole_Dynamics>(config);
+    std::shared_ptr<Cartpole_Cost> cartpole_cost = std::make_shared<Cartpole_Cost>(config);
+    iLQR.reset(new iLQR_Solver(config, cartpole_dynamics, cartpole_cost));
 
     utraj.resize(Nt - 1);
     for (int i = 0; i < Nt - 1; ++i) {
@@ -30,7 +34,6 @@ class Cartpole_Example {
     if (counter < waiting_time) {
       counter++;
     } else if ((counter - waiting_time) % (int)(step / 0.002) == 0) {
-      // std::cout << "********** iLQR *********" << std::endl;
       ocs2::vector_t _xcur(4);
       std::vector<ocs2::vector_t> _x_goal(Nt);
       _xcur << d->sensordata[0], d->sensordata[1], d->sensordata[2], d->sensordata[3];
@@ -57,6 +60,8 @@ class Cartpole_Example {
   double step;
   int Nt;
   double dt;
+
+  bool first_run = true;
 
   std::vector<ocs2::vector_t> utraj;
 };
