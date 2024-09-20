@@ -1,36 +1,21 @@
 
 #include <iLQR.h>
 
-Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
-  nx = 4;
-  nu = 1;
-
-  Q.setZero(nx, nx);
-  Qn.setZero(nx, nx);
-  R.setZero(nu, nu);
-
-  YAML::Node config = YAML::LoadFile(yaml_name);
-
+iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model) {
   dt = config["dt"].as<double>();
-  step = config["step"].as<double>();
-  Tfinal = config["Tfinal"].as<double>();
+  double Tfinal = config["Tfinal"].as<double>();
   Nt = (int)(Tfinal / dt) + 1;
 
-  // Initialize weight matrix
-  Q(0, 0) = config["Q"]["q1"].as<double>();
-  Q(1, 1) = config["Q"]["q2"].as<double>();
-  Q(2, 2) = config["Q"]["q3"].as<double>();
-  Q(3, 3) = config["Q"]["q4"].as<double>();
-  Q = Q * dt;
-  Qn(0, 0) = config["Qn"]["q1"].as<double>();
-  Qn(1, 1) = config["Qn"]["q2"].as<double>();
-  Qn(2, 2) = config["Qn"]["q3"].as<double>();
-  Qn(3, 3) = config["Qn"]["q4"].as<double>();
-  R(0, 0) = config["R"]["r1"].as<double>();
+  // dynamics
+  for (int i = 0; i < Nt - 1; ++i) {
+    dynamics_model_.push_back(dynamics_model);
+  }
 
-  m_cart = config["m_cart"].as<double>();
-  m_pole = config["m_pole"].as<double>();
-  l = config["l"].as<double>();
+  nx = dynamics_model->get_nx();
+  nu = dynamics_model->get_nu();
+  Q = dynamics_model->getRunningStateCostMatrix();
+  Qn = dynamics_model->getTerminalStateCostMatrix();
+  R = dynamics_model->getRunningInputCostMatrix();
 
   sigma = config["sigma"].as<double>();
   beta = config["beta"].as<double>();
@@ -45,14 +30,13 @@ Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
   derivatives.lx.resize(Nt);
   derivatives.lu.resize(Nt - 1);
   derivatives.lxx.resize(Nt);
-  derivatives.lxu.resize(Nt - 1);
+  derivatives.lux.resize(Nt - 1);
   derivatives.luu.resize(Nt - 1);
   derivatives.fx.resize(Nt - 1);
   derivatives.fu.resize(Nt - 1);
   xtraj.resize(Nt);
   utraj.resize(Nt - 1);
-  std::shared_ptr<Cartpole_Dynamics> cartpole_dynamics;
-  cartpole_dynamics.reset(new Cartpole_Dynamics(dt, m_cart, m_pole, l / 2));
+  xgoal.resize(Nt);
   for (int i = 0; i < Nt - 1; ++i) {
     p[i].setZero(nx, nu);
     P[i].setZero(nx, nx);
@@ -60,17 +44,15 @@ Cartpole_iLQR::Cartpole_iLQR(std::string yaml_name) {
     K[i].setZero(nu, nx);
     xtraj[i].setZero(nx);
     utraj[i].setZero(nu);
-    cartpole_dynamics_.push_back(cartpole_dynamics);
+    xgoal[i].setZero(nx);
   }
   p[Nt - 1].setZero(nx, nu);
   P[Nt - 1].setZero(nx, nx);
   xtraj[Nt - 1].setZero(nx);
-
-  // Initial guess
-  xgoal.setZero(nx);
+  xgoal[Nt - 1].setZero(nx);
 }
 
-Cartpole_iLQR::~Cartpole_iLQR() {
+iLQR_Solver::~iLQR_Solver() {
   double derivativeTimeTotal = 0;
   double backwardPassTimeTotal = 0;
   double lineSeachTimeTotal = 0;
@@ -93,57 +75,35 @@ Cartpole_iLQR::~Cartpole_iLQR() {
   }
 }
 
-double Cartpole_iLQR::vector_max(const std::vector<ocs2::vector_t>& v) {
-  double v_max = 0;
-  for (int i = 0; i < v.size(); ++i) {
-    if (v_max < v[i].cwiseAbs().maxCoeff())
-      v_max = v[i].cwiseAbs().maxCoeff();
-  }
-  return v_max;
-}
-
-bool Cartpole_iLQR::isPositiveDefinite(const ocs2::matrix_t& M) {
-  // 对于小尺寸矩阵，可以直接计算特征值
-  Eigen::SelfAdjointEigenSolver<ocs2::matrix_t> es(M);
-  const auto& eigenvalues = es.eigenvalues();
-  // 检查所有特征值是否大于零
-  for (int i = 0; i < eigenvalues.size(); ++i) {
-    if (eigenvalues[i] <= 0) {  // 如果有任何一个特征值小于等于零
-      return false;
-    }
-  }
-  return true;  // 所有特征值都大于零，则矩阵是正定的
-}
-
 // cost derivatives.function
-double Cartpole_iLQR::cost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj) {
+double iLQR_Solver::calCost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj) {
   double J = 0.0;
   for (int k = 0; k < (Nt - 1); ++k)
-    J += (0.5 * (_xtraj[k] - xgoal).transpose() * Q * (_xtraj[k] - xgoal) + 0.5 * _utraj[k].transpose() * R * _utraj[k]).value();
-  J += (0.5 * (_xtraj[Nt - 1] - xgoal).transpose() * Qn * (_xtraj[Nt - 1] - xgoal)).value();
+    J += (0.5 * (_xtraj[k] - xgoal[k]).transpose() * Q * (_xtraj[k] - xgoal[k]) + 0.5 * _utraj[k].transpose() * R * _utraj[k]).value();
+  J += (0.5 * (_xtraj[Nt - 1] - xgoal[Nt - 1]).transpose() * Qn * (_xtraj[Nt - 1] - xgoal[Nt - 1])).value();
   return J;
 }
 
-void Cartpole_iLQR::calDerivatives() {
+void iLQR_Solver::calDerivatives() {
   // #pragma omp parallel for num_threads(4)
   for (int k = (Nt - 2); k > -1; --k) {
     // Calculate derivatives
-    derivatives.lx[k].noalias() = Q * (xtraj[k] - xgoal);
+    derivatives.lx[k].noalias() = Q * (xtraj[k] - xgoal[k]);
     derivatives.lu[k].noalias() = R * utraj[k];
     derivatives.lxx[k].noalias() = Q;
-    derivatives.lxu[k].noalias() = ocs2::matrix_t::Zero(nx, nu);
+    derivatives.lux[k].noalias() = ocs2::matrix_t::Zero(nu, nx);
     derivatives.luu[k].noalias() = R;
 
     // df/dx for A and df/du for B
-    const ocs2::matrix_t jacobian = cartpole_dynamics_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
-    derivatives.fx[k].noalias() = jacobian.block(0, 0, 4, 4);
-    derivatives.fu[k].noalias() = jacobian.block(0, 4, 4, 1);
+    const ocs2::matrix_t jacobian = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
+    derivatives.fx[k].noalias() = jacobian.leftCols(nx);
+    derivatives.fu[k].noalias() = jacobian.rightCols(nu);
   }
-  derivatives.lx[Nt - 1].noalias() = Qn * (xtraj[Nt - 1] - xgoal);
+  derivatives.lx[Nt - 1].noalias() = Qn * (xtraj[Nt - 1] - xgoal[Nt - 1]);
   derivatives.lxx[Nt - 1].noalias() = Qn;
 }
 
-double Cartpole_iLQR::backward_pass() {
+double iLQR_Solver::backward_pass() {
   double delta_J = 0.0;
   p[Nt - 1].noalias() = derivatives.lx[Nt - 1];
   P[Nt - 1].noalias() = derivatives.lxx[Nt - 1];
@@ -156,8 +116,8 @@ double Cartpole_iLQR::backward_pass() {
     ddp_matrix.Qxx.noalias() = (derivatives.lxx[k] + derivatives.fx[k].transpose() * P[k + 1] * derivatives.fx[k]).eval();
     ddp_matrix.Quu.noalias() = (derivatives.luu[k] + derivatives.fu[k].transpose() * P[k + 1] * derivatives.fu[k]).eval();
     ddp_matrix.Quu_inverse = ddp_matrix.Quu.ldlt().solve(ocs2::matrix_t::Identity(nu, nu));
-    ddp_matrix.Qxu.noalias() = (derivatives.fx[k].transpose() * P[k + 1] * derivatives.fu[k]).eval();
-    ddp_matrix.Qux.noalias() = ddp_matrix.Qxu.transpose().eval();
+    ddp_matrix.Qux.noalias() = derivatives.lux[k] + (derivatives.fu[k].transpose() * P[k + 1] * derivatives.fx[k]).eval();
+    ddp_matrix.Qxu.noalias() = ddp_matrix.Qux.transpose().eval();
 
     d[k].noalias() = (ddp_matrix.Quu_inverse * ddp_matrix.Qu).eval();
     K[k].noalias() = (ddp_matrix.Quu_inverse * ddp_matrix.Qux).eval();
@@ -172,7 +132,7 @@ double Cartpole_iLQR::backward_pass() {
 }
 
 // line search
-double Cartpole_iLQR::line_search(double delta_J, double J) {
+double iLQR_Solver::line_search(double delta_J, double J) {
   double alpha = 1.0;
   double Jn = 1.0e+9;
   std::vector<ocs2::vector_t> xn(Nt);
@@ -180,12 +140,13 @@ double Cartpole_iLQR::line_search(double delta_J, double J) {
   xn[0] = xtraj[0];
 
   while (Jn > (J - beta * alpha * delta_J)) {
+    assert(alpha >= 1e-8; "line search failed to find a feasible rollout");
     for (int k = 0; k < (Nt - 1); ++k) {
       un[k] = utraj[k] - alpha * d[k] - K[k] * (xn[k] - xtraj[k]);
-      xn[k + 1] = cartpole_dynamics_[k]->getValue(xn[k], un[k]);
+      xn[k + 1] = dynamics_model_[k]->getValue(xn[k], un[k]);
     }
     alpha = sigma * alpha;
-    Jn = cost(xn, un);
+    Jn = calCost(xn, un);
   }
   xtraj = xn;
   utraj = un;
@@ -193,9 +154,9 @@ double Cartpole_iLQR::line_search(double delta_J, double J) {
   return Jn;
 }
 
-void Cartpole_iLQR::solve() {
+void iLQR_Solver::solve() {
   int iter = 0;
-  double J = cost(xtraj, utraj);
+  double J = calCost(xtraj, utraj);
   double delta_J = 1.0e+9;
   std::vector<ocs2::scalar_t> derivativeTime;
   std::vector<ocs2::scalar_t> backwardPassTime;
@@ -238,21 +199,12 @@ void Cartpole_iLQR::solve() {
   lineSeachTime_.push_back(lineSeachTimeTotal);
 }
 
-void Cartpole_iLQR::reset_solver(const ocs2::vector_t& xcur) {
-  if (first_run) {
-    // Initial Rollout
-    xtraj[0] = xcur;
-    for (int k = 0; k < (Nt - 1); ++k) {
-      utraj[k] = ocs2::vector_t::Zero(nu);
-      xtraj[k + 1] = cartpole_dynamics_[k]->getValue(xtraj[k], utraj[k]);
-    }
-    // first_run = false;
-  } else {
-    for (int k = 0; k < (Nt - 2); ++k) {
-      xtraj[k] = xtraj[k + 1];
-      utraj[k] = utraj[k + 1];
-    }
-    xtraj[0] = xcur;
+void iLQR_Solver::reset_solver(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal) {
+  // Initial Rollout
+  xtraj[0] = xcur;
+  for (int k = 0; k < (Nt - 1); ++k) {
+    utraj[k] = dynamics_model_[k]->getQuasiStaticInput(xcur);
+    xtraj[k + 1] = dynamics_model_[k]->getValue(xtraj[k], utraj[k]);
   }
 
   // initialize K and d
@@ -260,18 +212,23 @@ void Cartpole_iLQR::reset_solver(const ocs2::vector_t& xcur) {
     d[i].setOnes();
     K[i].setZero();
   }
+
+  // reference
+  set_reference(x_goal);
 }
 
-void Cartpole_iLQR::iLQR_algorithm(const ocs2::vector_t& xcur) {
+std::vector<ocs2::vector_t> iLQR_Solver::iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal) {
   // reset
-  reset_solver(xcur);
+  reset_solver(xcur, x_goal);
 
   // DDP Algorithm
   solve();
+
+  return utraj;
 }
 
 // 最优状态和控制轨迹
-void Cartpole_iLQR::traj_plot() {
+void iLQR_Solver::traj_plot() {
   // 绘制J
   std::vector<double> J_length;
   for (size_t i = 0; i < Jtraj.size(); ++i) {
@@ -283,52 +240,4 @@ void Cartpole_iLQR::traj_plot() {
   plt::ylabel("J");
   plt::title("cost traj for Cart-Pole Problem");
   plt::show();
-}
-
-void Cartpole_iLQR::get_control(mjData* d) {
-  int waiting_time = 100;
-  static int counter = 0;
-  static int index = 0;
-
-  if (counter < waiting_time) {
-    counter++;
-  } else if ((counter - waiting_time) % (int)(step / 0.002) == 0) {
-    // std::cout << "********** iLQR *********" << std::endl;
-    ocs2::vector_t _xcur(4);
-    _xcur << d->sensordata[0], d->sensordata[1], d->sensordata[2], d->sensordata[3];
-    iLQR_algorithm(_xcur);
-    index = 0;
-    counter++;
-  } else {
-    // 设置控制力
-    d->ctrl[0] = fmin(fmax(utraj[index].value(), -100), 100);
-    d->ctrl[1] = 0;  // pole没有直接控制
-    counter++;
-    if (counter % (int)(dt / 0.002) == 0) {
-      index++;
-    }
-  }
-
-  // // plot
-  // if (counter < waiting_time) {
-  //   counter++;
-  // } else if (counter == waiting_time) {
-  //   Matrix<double, 4, 1> _xcur = Matrix<double, 4, 1>(d->sensordata[0], d->sensordata[1], d->sensordata[2], d->sensordata[3]);
-  //   double _ucur = 1e-4;
-  //   iLQR_algorithm(_xcur, _ucur);
-  //   std::cout << "xcur = " << _xcur.transpose() << "\n ";
-  //   traj_plot();
-  //   counter++;
-  // } else if ((counter - waiting_time) % (int)(Tfinal / 0.002) != 0) {
-  //   // 设置控制力
-  //   d->ctrl[0] = fmin(fmax(utraj[index], -100), 100);
-  //   d->ctrl[1] = 0;  // pole没有直接控制
-  //   counter++;
-  //   if (counter % (int)(dt / 0.002) == 0) {
-  //     std::cout << "utraj_" << index << " = " << utraj[index] << "\n ";
-  //     index++;
-  //   }
-  // } else {
-  //   pd_controller(d);
-  // }
 }

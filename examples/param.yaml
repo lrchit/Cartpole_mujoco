@@ -1,4 +1,6 @@
 
+model_file: "../assets/cartpole/cartpole.xml"
+
 # weights
 Q:
   q1: 1
@@ -27,7 +29,7 @@ initial_state:
 
 # iLQR cal
 dt: 0.005
-step: 0.01
+step: 0.005
 Tfinal: 0.5
 
 # line search

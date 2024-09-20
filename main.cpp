@@ -24,12 +24,14 @@
 #include <string>
 #include <thread>
 
+#include <yaml-cpp/yaml.h>
+
 #include "array_safety.h"
 #include "glfw_adapter.h"
 #include "simulate.h"
 #include <mujoco/mujoco.h>
 
-#include "iLQR.h"
+#include "cartpole_example.h"
 #include "pd_controller.h"
 
 #define MUJOCO_PLUGIN_DIR "mujoco_plugin"
@@ -64,8 +66,8 @@ mjtNum* ctrlnoise = nullptr;
 
 using Seconds = std::chrono::duration<double>;
 
-std::string yaml_name = "../controllers/iLQR/param.yaml";
-std::unique_ptr<Cartpole_iLQR> iLQR;
+std::string yaml_name = "../examples/param.yaml";
+std::unique_ptr<Cartpole_Example> cartpole_example;
 
 //---------------------------------------- plugin handling
 //-----------------------------------------
@@ -435,8 +437,8 @@ void ControlLoop(mj::Simulate& sim) {
         {
           // pd_controller(d);
 
-          // iLQR
-          iLQR->get_control(d);
+          // cartpole_example
+          cartpole_example->get_control(d);
           // std::chrono::time_point<std::chrono::system_clock> t_end = std::chrono::system_clock::now();
           // double time_record = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count();
           // std::cout << "controller_time: " << time_record / 1.0e+6 << "\n";
@@ -545,16 +547,21 @@ int main(int argc, char** argv) {
   auto sim = std::make_unique<mj::Simulate>(std::make_unique<mj::GlfwAdapter>(), &cam, &opt, &pert,
       /* is_passive = */ false);
 
+  // load yaml
   const char* filename = nullptr;
-  // if (argc > 1) {
-  //   filename = argv[1];
-  // }
-  filename = "../assets/cartpole/cartpole.xml";
+  std::string modelFile;
+  YAML::Node config = YAML::LoadFile(yaml_name);
+  if (config["model_file"]) {
+    modelFile = config["model_file"].as<std::string>();
+    filename = modelFile.c_str();  // 转换为 const char*
+  } else {
+    std::cerr << "Model file path not found!" << std::endl;
+  }
+  cartpole_example.reset(new Cartpole_Example(config));
 
   // start physics thread
   std::thread physicsthreadhandle(&PhysicsThread, sim.get(), filename);
   // start control thread
-  iLQR.reset(new Cartpole_iLQR(yaml_name));
   std::thread controlthreadhandle(&ControlThread, sim.get(), filename);
 
   // start simulation UI loop (blocking call)

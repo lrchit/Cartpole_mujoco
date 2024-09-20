@@ -11,7 +11,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native")
 
-project(cartpole_sim)
+project(iLQR_sim)
 
 include(FetchContent)  
 
@@ -37,6 +37,10 @@ find_package(Boost REQUIRED COMPONENTS filesystem system)
 
 add_compile_definitions(EIGEN_STACK_ALLOCATION_LIMIT=0)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
+add_definitions(-DEIEN_USE_THREADING)
+
 include_directories(
     ./
     ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/include
@@ -45,6 +49,8 @@ include_directories(
     simulate
     controllers/iLQR
     auto_diff
+    examples
+    examples/cartpole
     ${PYTHON_INCLUDE_DIRS}
 )
 
@@ -72,11 +78,15 @@ endif()
 aux_source_directory(simulate SIM_SRC)
 aux_source_directory(controllers/iLQR ILQR_SRC)
 aux_source_directory(auto_diff AUTO_DIFF_SRC)
+aux_source_directory(examples EXAMPLE_SRC)
+aux_source_directory(examples/cartpole CARTPOLE_SRC)
 
 add_executable(main main.cpp
                     ${ILQR_SRC}
                     ${SIM_SRC}
                     ${AUTO_DIFF_SRC}
+                    ${EXAMPLE_SRC}
+                    ${CARTPOLE_SRC}
 )
 
 target_link_libraries(main

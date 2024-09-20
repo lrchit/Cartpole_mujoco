@@ -67,7 +67,8 @@
         "stop_token": "cpp",
         "numbers": "cpp",
         "semaphore": "cpp",
-        "any": "cpp"
+        "any": "cpp",
+        "forward_list": "cpp"
     },
     "workbench.colorTheme": "Default Dark Modern",
     "workbench.editor.decorations.colors": true,
