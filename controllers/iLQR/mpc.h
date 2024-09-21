@@ -6,13 +6,14 @@
 #include <mutex>
 #include <thread>
 
+#include <iLQR.h>
 #include <interpolation.h>
 
-class mpc_controller {
+class MpcController {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  mpc_controller(YAML::Node config, std::unique_ptr<iLQR_Solver> iLQR) : iLQR_(std::move(iLQR)) {
+  MpcController(YAML::Node config, std::unique_ptr<iLQR_Solver> iLQR) : iLQR_(std::move(iLQR)) {
     nx_ = config["nx"].as<int>();
     nu_ = config["nu"].as<int>();
     mpcfrequency_ = config["mpcFrequency"].as<double>();
@@ -32,10 +33,10 @@ class mpc_controller {
     K_.setZero(nu_, nx_);
 
     // launch mpc and mrt thread
-    mpc_thread_ = std::thread(&mpc_controller::callMpcSolver, this);
-    mrt_thread_ = std::thread(&mpc_controller::calSolution, this);
+    mpc_thread_ = std::thread(&MpcController::callMpcSolver, this);
+    mrt_thread_ = std::thread(&MpcController::calSolution, this);
   }
-  ~mpc_controller() {
+  ~MpcController() {
     stop_thread_ = true;  // signal the thread to stop
     if (mpc_thread_.joinable()) {
       mpc_thread_.join();

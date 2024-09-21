@@ -51,6 +51,7 @@ include_directories(
     auto_diff
     examples/common
     examples/cartpole
+    examples/quadruped
     ${PYTHON_INCLUDE_DIRS}
 )
 
@@ -80,6 +81,7 @@ aux_source_directory(controllers/iLQR ILQR_SRC)
 aux_source_directory(auto_diff AUTO_DIFF_SRC)
 aux_source_directory(examples/common COMMON_SRC)
 aux_source_directory(examples/cartpole CARTPOLE_SRC)
+aux_source_directory(examples/quadruped QUADRUPED_SRC)
 
 add_executable(main main.cpp
                     ${ILQR_SRC}
@@ -87,6 +89,7 @@ add_executable(main main.cpp
                     ${AUTO_DIFF_SRC}
                     ${COMMON_SRC}
                     ${CARTPOLE_SRC}
+                    ${QUADRUPED_SRC}
 )
 
 target_link_libraries(main

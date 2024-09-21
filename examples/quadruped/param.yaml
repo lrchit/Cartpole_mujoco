@@ -1,0 +1,53 @@
+
+nx: 37
+nu: 12
+
+nq: 19
+nv: 18
+
+# cost
+Q:
+  q1: 1
+  q2: 1
+  q3: 0.1
+  q4: 0.1
+Qn:
+  q1: 500
+  q2: 500
+  q3: 100
+  q4: 100
+R:
+  r1: 0.01
+
+# initial state
+initial_state:
+  p1: -0.1
+  p2: 1.1
+  p3: -2.6
+  p4: 0.1
+  p5: 1.1
+  p6: -2.6
+  p7: -0.1
+  p8: 1.1
+  p9: -2.6
+  p10: 0.1
+  p11: 1.1
+  p12: -2.6
+
+# mpc settings
+dt: 0.005
+horizon: 100
+mpcFrequency: 500
+mrtFrequency: 500
+useFeedbackPolicy: false
+
+# line search
+sigma: 0.5
+beta: 1.0e-2
+
+# iLQR convergence
+max_iteration: 10
+tolerance: 1.0e-2
+
+# verbose
+verbose_cal_time: true

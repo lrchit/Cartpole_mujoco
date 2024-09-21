@@ -33,6 +33,7 @@
 
 #include "example.h"
 #include "cartpole_example.h"
+#include "quadruped_example.h"
 #include "pd_controller.h"
 
 #define MUJOCO_PLUGIN_DIR "mujoco_plugin"
@@ -67,7 +68,6 @@ mjtNum* ctrlnoise = nullptr;
 
 using Seconds = std::chrono::duration<double>;
 
-std::string yaml_name;
 std::unique_ptr<Example> example;
 
 //---------------------------------------- plugin handling
@@ -253,14 +253,6 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   return mnew;
 }
 
-// normalize angle
-void AngleNormalization(double& angle) {
-  while (angle > std::numbers::pi)
-    angle -= 2 * std::numbers::pi;
-  while (angle < -std::numbers::pi)
-    angle += 2 * std::numbers::pi;
-}
-
 // simulate in background thread (while rendering in main thread)
 void PhysicsLoop(mj::Simulate& sim) {
   // cpu-sim syncronization point
@@ -431,9 +423,7 @@ void ControlLoop(mj::Simulate& sim) {
   while (!sim.exitrequest.load()) {
     if (!sim.uiloadrequest.load()) {
       if (d != nullptr) {
-        AngleNormalization(d->sensordata[1]);
-
-        { example->get_control(d); }
+        { example->computeInput(d); }
       }
     }
   }
@@ -450,22 +440,13 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
     if (m)
       d = mj_makeData(m);
     if (d) {
+      std::cerr << "444444444444444" << std::endl;
       sim->Load(m, d, filename);
+      std::cerr << "5555555555555555" << std::endl;
       mj_forward(m, d);
 
-      YAML::Node config = YAML::LoadFile(yaml_name);
-      // Initial state
-      Eigen::Matrix<double, 4, 1> initial_state;
-      initial_state(0) = config["initial_state"]["pos"].as<double>();
-      initial_state(1) = config["initial_state"]["theta"].as<double>();
-      initial_state(2) = config["initial_state"]["vel"].as<double>();
-      initial_state(3) = config["initial_state"]["omega"].as<double>();
-
-      // 设置初始状态（可选）
-      d->qpos[0] = initial_state(0);  // Cart的位置
-      d->qpos[1] = initial_state(1);  // Pole的角度（直立时为0）
-      d->qvel[0] = initial_state(2);  // Cart的速度
-      d->qvel[1] = initial_state(3);  // Pole的角速度
+      // load initial state
+      example->load_initial_state(d);
 
       // allocate ctrlnoise
       free(ctrlnoise);
@@ -544,12 +525,11 @@ int main(int argc, char** argv) {
   }
   std::string example_name = argv[1];
   if (example_name == "cartpole") {
-    filename = "../assets/cartpole/cartpole.xml";
-    yaml_name = "../examples/cartpole/param.yaml";
-    example.reset(new Cartpole_Example(yaml_name));
+    filename = "../models/cartpole/cartpole.xml";
+    example.reset(new Cartpole_Example("../examples/cartpole/param.yaml"));
   } else if (example_name == "quadruped") {
-    filename = "../assets/a1/a1.xml";
-    yaml_name = "../examples/a1/a1.yaml";
+    filename = "../models/quadruped/scene.xml";
+    example.reset(new Quadruped_Example("../examples/quadruped/param.yaml"));
   } else {
     throw std::runtime_error("example not found!");
   }
