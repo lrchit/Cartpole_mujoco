@@ -12,7 +12,7 @@
 #include <dynamics.h>
 #include <cost.h>
 
-#define pi 3.1416
+// #define pi 3.1416
 
 namespace plt = matplotlibcpp;
 
@@ -49,15 +49,19 @@ class iLQR_Solver {
   iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost);
   ~iLQR_Solver();
 
-  std::vector<ocs2::vector_t> iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal);
+  void iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal);
 
   void set_reference(const std::vector<ocs2::vector_t>& x_goal) { xgoal = x_goal; }
 
+  std::vector<ocs2::vector_t> getStateTrajectory() { return xtraj; }
+  std::vector<ocs2::vector_t> getInputTrajectory() { return utraj; }
+  ocs2::matrix_t getFeedBackMatrix() { return K[0]; }
+
   private:
-  double calCost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj);
+  ocs2::scalar_t calCost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj);
   void calDerivatives();
-  double backward_pass();
-  double line_search(double delta_J, double J);
+  ocs2::scalar_t backward_pass();
+  ocs2::scalar_t line_search(ocs2::scalar_t delta_J, ocs2::scalar_t J);
   void solve();
 
   void reset_solver(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal);
@@ -72,7 +76,7 @@ class iLQR_Solver {
 
   std::vector<ocs2::vector_t> xtraj;
   std::vector<ocs2::vector_t> utraj;
-  std::vector<double> Jtraj;
+  std::vector<ocs2::scalar_t> Jtraj;
   std::vector<ocs2::vector_t> xgoal;
 
   std::vector<ocs2::vector_t> p;
@@ -84,9 +88,9 @@ class iLQR_Solver {
   Derivatives derivatives;
 
   // line search param
-  double sigma;
-  double beta;
-  double tolerance;
+  ocs2::scalar_t sigma;
+  ocs2::scalar_t beta;
+  ocs2::scalar_t tolerance;
 
   std::vector<ocs2::scalar_t> derivativeTime_;
   std::vector<ocs2::scalar_t> backwardPassTime_;

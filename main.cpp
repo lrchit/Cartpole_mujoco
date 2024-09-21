@@ -31,6 +31,7 @@
 #include "simulate.h"
 #include <mujoco/mujoco.h>
 
+#include "example.h"
 #include "cartpole_example.h"
 #include "pd_controller.h"
 
@@ -67,7 +68,7 @@ mjtNum* ctrlnoise = nullptr;
 using Seconds = std::chrono::duration<double>;
 
 std::string yaml_name;
-std::unique_ptr<Cartpole_Example> cartpole_example;
+std::unique_ptr<Example> example;
 
 //---------------------------------------- plugin handling
 //-----------------------------------------
@@ -254,10 +255,10 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
 
 // normalize angle
 void AngleNormalization(double& angle) {
-  while (angle > pi)
-    angle -= 2 * pi;
-  while (angle < -pi)
-    angle += 2 * pi;
+  while (angle > std::numbers::pi)
+    angle -= 2 * std::numbers::pi;
+  while (angle < -std::numbers::pi)
+    angle += 2 * std::numbers::pi;
 }
 
 // simulate in background thread (while rendering in main thread)
@@ -432,19 +433,7 @@ void ControlLoop(mj::Simulate& sim) {
       if (d != nullptr) {
         AngleNormalization(d->sensordata[1]);
 
-        // std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
-
-        {
-          // pd_controller(d);
-
-          // cartpole_example
-          cartpole_example->get_control(d);
-          // std::chrono::time_point<std::chrono::system_clock> t_end = std::chrono::system_clock::now();
-          // double time_record = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count();
-          // std::cout << "controller_time: " << time_record / 1.0e+6 << "\n";
-        }
-
-        // std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        { example->get_control(d); }
       }
     }
   }
@@ -557,14 +546,13 @@ int main(int argc, char** argv) {
   if (example_name == "cartpole") {
     filename = "../assets/cartpole/cartpole.xml";
     yaml_name = "../examples/cartpole/param.yaml";
+    example.reset(new Cartpole_Example(yaml_name));
   } else if (example_name == "quadruped") {
     filename = "../assets/a1/a1.xml";
     yaml_name = "../examples/a1/a1.yaml";
   } else {
     throw std::runtime_error("example not found!");
   }
-
-  cartpole_example.reset(new Cartpole_Example());
 
   // start physics thread
   std::thread physicsthreadhandle(&PhysicsThread, sim.get(), filename);

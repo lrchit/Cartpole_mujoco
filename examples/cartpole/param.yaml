@@ -1,5 +1,8 @@
 
-# weights
+nx: 4
+nu: 1
+
+# cost
 Q:
   q1: 1
   q2: 1
@@ -13,29 +16,32 @@ Qn:
 R:
   r1: 0.01
 
-# dynamics parameters
+# dynamics
 m_cart: 1
 m_pole: 0.1
 l: 1
 
-# init
+# initial state
 initial_state:
   pos: 0
   theta: -3.1416
   vel: 0
   omega: 0
 
-# iLQR cal
+# mpc settings
 dt: 0.005
-step: 0.005
-Tfinal: 0.5
+horizon: 100
+mpcFrequency: 500
+mrtFrequency: 500
+useFeedbackPolicy: false
 
 # line search
 sigma: 0.5
 beta: 1.0e-2
 
-# convergence
+# iLQR convergence
 max_iteration: 10
 tolerance: 1.0e-2
 
+# verbose
 verbose_cal_time: true

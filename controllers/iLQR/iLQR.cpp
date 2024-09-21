@@ -2,9 +2,7 @@
 #include <iLQR.h>
 
 iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost) {
-  double dt = config["dt"].as<double>();
-  double Tfinal = config["Tfinal"].as<double>();
-  Nt = (int)(Tfinal / dt) + 1;
+  Nt = config["horizon"].as<int>() + 1;
 
   max_iteration = config["max_iteration"].as<double>();
 
@@ -65,7 +63,7 @@ iLQR_Solver::~iLQR_Solver() {
   if (verbose_cal_time) {
     std::cout << "################################################" << std::endl;
     std::cout << "  Average Time    =     " << totalTimeAverage << " ms " << std::endl;
-    std::cout << "  derivative      =     " << derivativeTimeTotal / derivativeTime_.size() << " ms  "
+    std::cout << "  derivation      =     " << derivativeTimeTotal / derivativeTime_.size() << " ms  "
               << derivativeTimeTotal / derivativeTime_.size() / totalTimeAverage * 100 << "%" << std::endl;
     std::cout << "  backward pass   =     " << backwardPassTimeTotal / derivativeTime_.size() << " ms  "
               << backwardPassTimeTotal / derivativeTime_.size() / totalTimeAverage * 100 << "%" << std::endl;
@@ -117,13 +115,13 @@ double iLQR_Solver::backward_pass() {
     ddp_matrix.Qux.noalias() = derivatives.lux[k] + (derivatives.fu[k].transpose() * P[k + 1] * derivatives.fx[k]).eval();
     ddp_matrix.Qxu.noalias() = ddp_matrix.Qux.transpose().eval();
 
-    d[k].noalias() = (ddp_matrix.Quu_inverse * ddp_matrix.Qu).eval();
-    K[k].noalias() = (ddp_matrix.Quu_inverse * ddp_matrix.Qux).eval();
+    d[k].noalias() = (-ddp_matrix.Quu_inverse * ddp_matrix.Qu).eval();
+    K[k].noalias() = (-ddp_matrix.Quu_inverse * ddp_matrix.Qux).eval();
 
-    p[k].noalias() = (ddp_matrix.Qx - ddp_matrix.Qxu * d[k]).eval();
-    P[k].noalias() = (ddp_matrix.Qxx - ddp_matrix.Qxu * K[k]).eval();
+    p[k].noalias() = (ddp_matrix.Qx + ddp_matrix.Qxu * d[k]).eval();
+    P[k].noalias() = (ddp_matrix.Qxx + ddp_matrix.Qxu * K[k]).eval();
 
-    delta_J += (ddp_matrix.Qu.transpose() * d[k]).value();
+    delta_J -= (ddp_matrix.Qu.transpose() * d[k]).value();
   }
 
   return delta_J;
@@ -142,7 +140,7 @@ double iLQR_Solver::line_search(double delta_J, double J) {
       throw std::runtime_error("line search failed to find a feasible rollout!");
     }
     for (int k = 0; k < (Nt - 1); ++k) {
-      un[k] = utraj[k] - alpha * d[k] - K[k] * (xn[k] - xtraj[k]);
+      un[k] = utraj[k] + alpha * d[k] + K[k] * (xn[k] - xtraj[k]);
       xn[k + 1] = dynamics_model_[k]->getValue(xn[k], un[k]);
     }
     alpha = sigma * alpha;
@@ -216,14 +214,12 @@ void iLQR_Solver::reset_solver(const ocs2::vector_t& xcur, const std::vector<ocs
   set_reference(x_goal);
 }
 
-std::vector<ocs2::vector_t> iLQR_Solver::iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal) {
-  // reset
+void iLQR_Solver::iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal) {
+  // reset problem
   reset_solver(xcur, x_goal);
 
   // DDP Algorithm
   solve();
-
-  return utraj;
 }
 
 // 最优状态和控制轨迹

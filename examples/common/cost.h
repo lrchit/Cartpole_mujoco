@@ -9,7 +9,7 @@ class Cost {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   Cost() {}
-  ~Cost() {}
+  ~Cost() = default;
 
   virtual ocs2::scalar_t getValue(const ocs2::vector_t& x, const ocs2::vector_t& u, const ocs2::vector_t& xgoal) = 0;
   virtual ocs2::scalar_t getValue(const ocs2::vector_t& x, const ocs2::vector_t& xgoal) = 0;
