@@ -1,8 +1,10 @@
 
 #include <iLQR.h>
 
-iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost) {
+iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost, const ocs2::matrix_t Kguess) {
   Nt = config["horizon"].as<int>() + 1;
+  nx = config["nx"].as<double>();
+  nu = config["nu"].as<double>();
 
   max_iteration = config["max_iteration"].as<double>();
 
@@ -12,8 +14,8 @@ iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_m
     cost_.push_back(cost);
   }
 
-  nx = dynamics_model->get_nx();
-  nu = dynamics_model->get_nu();
+  // feedback gain for initial guess
+  K_guess = Kguess;
 
   sigma = config["sigma"].as<double>();
   beta = config["beta"].as<double>();
@@ -34,30 +36,30 @@ iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_m
   derivatives.fu.resize(Nt - 1);
   xtraj.resize(Nt);
   utraj.resize(Nt - 1);
-  xgoal.resize(Nt);
-  for (int i = 0; i < Nt - 1; ++i) {
-    p[i].setZero(nx, nu);
-    P[i].setZero(nx, nx);
-    d[i].setZero(nu, nu);
-    K[i].setZero(nu, nx);
-    xtraj[i].setZero(nx);
-    utraj[i].setZero(nu);
-    xgoal[i].setZero(nx);
+  xref.resize(Nt);
+  for (int k = 0; k < Nt - 1; ++k) {
+    p[k].setZero(nx, nu);
+    P[k].setZero(nx, nx);
+    d[k].setZero(nu, nu);
+    K[k].setZero(nu, nx);
+    xtraj[k].setZero(nx);
+    utraj[k].setZero(nu);
+    xref[k].setZero(nx);
   }
   p[Nt - 1].setZero(nx, nu);
   P[Nt - 1].setZero(nx, nx);
   xtraj[Nt - 1].setZero(nx);
-  xgoal[Nt - 1].setZero(nx);
+  xref[Nt - 1].setZero(nx);
 }
 
 iLQR_Solver::~iLQR_Solver() {
   double derivativeTimeTotal = 0;
   double backwardPassTimeTotal = 0;
   double lineSeachTimeTotal = 0;
-  for (int i = 0; i < derivativeTime_.size() - 1; ++i) {
-    derivativeTimeTotal += derivativeTime_[i];
-    backwardPassTimeTotal += backwardPassTime_[i];
-    lineSeachTimeTotal += lineSeachTime_[i];
+  for (int k = 0; k < derivativeTime_.size() - 1; ++k) {
+    derivativeTimeTotal += derivativeTime_[k];
+    backwardPassTimeTotal += backwardPassTime_[k];
+    lineSeachTimeTotal += lineSeachTime_[k];
   }
   double totalTimeAverage = (derivativeTimeTotal + backwardPassTimeTotal + lineSeachTimeTotal) / derivativeTime_.size();
   if (verbose_cal_time) {
@@ -77,9 +79,9 @@ iLQR_Solver::~iLQR_Solver() {
 double iLQR_Solver::calCost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj) {
   double J = 0.0;
   for (int k = 0; k < (Nt - 1); ++k) {
-    J += cost_[k]->getValue(_xtraj[k], _utraj[k], xgoal[k]);
+    J += cost_[k]->getValue(_xtraj[k], _utraj[k], xref[k]);
   }
-  J += cost_[Nt - 1]->getValue(_xtraj[Nt - 1], xgoal[Nt - 1]);
+  J += cost_[Nt - 1]->getValue(_xtraj[Nt - 1], xref[Nt - 1]);
   return J;
 }
 
@@ -87,16 +89,14 @@ void iLQR_Solver::calDerivatives() {
   // #pragma omp parallel for num_threads(4)
   for (int k = (Nt - 2); k > -1; --k) {
     // Calculate derivatives
-    std::tie(derivatives.lx[k], derivatives.lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xgoal[k]);
-    std::tie(derivatives.lxx[k], derivatives.lux[k], derivatives.luu[k]) = cost_[k]->getSecondDerivatives(xtraj[k], utraj[k], xgoal[k]);
+    std::tie(derivatives.lx[k], derivatives.lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xref[k]);
+    std::tie(derivatives.lxx[k], derivatives.lux[k], derivatives.luu[k]) = cost_[k]->getSecondDerivatives(xtraj[k], utraj[k], xref[k]);
 
     // df/dx for A and df/du for B
-    const ocs2::matrix_t jacobian = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
-    derivatives.fx[k].noalias() = jacobian.leftCols(nx);
-    derivatives.fu[k].noalias() = jacobian.rightCols(nu);
+    std::tie(derivatives.fx[k], derivatives.fu[k]) = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
   }
-  std::tie(derivatives.lx[Nt - 1], std::ignore) = cost_[Nt - 1]->getFirstDerivatives(xtraj[Nt - 1], xgoal[Nt - 1]);
-  std::tie(derivatives.lxx[Nt - 1], std::ignore, std::ignore) = cost_[Nt - 1]->getSecondDerivatives(xtraj[Nt - 1], xgoal[Nt - 1]);
+  std::tie(derivatives.lx[Nt - 1], std::ignore) = cost_[Nt - 1]->getFirstDerivatives(xtraj[Nt - 1], xref[Nt - 1]);
+  std::tie(derivatives.lxx[Nt - 1], std::ignore, std::ignore) = cost_[Nt - 1]->getSecondDerivatives(xtraj[Nt - 1], xref[Nt - 1]);
 }
 
 double iLQR_Solver::backward_pass() {
@@ -121,7 +121,7 @@ double iLQR_Solver::backward_pass() {
     p[k].noalias() = (ddp_matrix.Qx + ddp_matrix.Qxu * d[k]).eval();
     P[k].noalias() = (ddp_matrix.Qxx + ddp_matrix.Qxu * K[k]).eval();
 
-    delta_J -= (ddp_matrix.Qu.transpose() * d[k]).value();
+    delta_J -= 0.5 * (ddp_matrix.Qu.transpose() * d[k]).value();
   }
 
   return delta_J;
@@ -135,8 +135,10 @@ double iLQR_Solver::line_search(double delta_J, double J) {
   std::vector<ocs2::vector_t> un(Nt - 1);
   xn[0] = xtraj[0];
 
-  while (Jn > (J - beta * alpha * delta_J)) {
+  while (Jn > (J - beta * alpha * (1 - alpha / 2) * delta_J)) {
     if (alpha <= 1e-8) {
+      std::cerr << "delta_J = " << delta_J << std::endl;
+      std::cerr << "J = " << J << std::endl;
       throw std::runtime_error("line search failed to find a feasible rollout!");
     }
     for (int k = 0; k < (Nt - 1); ++k) {
@@ -186,37 +188,27 @@ void iLQR_Solver::solve() {
   double derivativeTimeTotal = 0;
   double backwardPassTimeTotal = 0;
   double lineSeachTimeTotal = 0;
-  for (int i = 0; i < iter - 1; ++i) {
-    derivativeTimeTotal += derivativeTime[i];
-    backwardPassTimeTotal += backwardPassTime[i];
-    lineSeachTimeTotal += lineSeachTime[i];
+  for (int k = 0; k < iter - 1; ++k) {
+    derivativeTimeTotal += derivativeTime[k];
+    backwardPassTimeTotal += backwardPassTime[k];
+    lineSeachTimeTotal += lineSeachTime[k];
   }
   derivativeTime_.push_back(derivativeTimeTotal);
   backwardPassTime_.push_back(backwardPassTimeTotal);
   lineSeachTime_.push_back(lineSeachTimeTotal);
 }
 
-void iLQR_Solver::reset_solver(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal) {
-  // Initial Rollout
+void iLQR_Solver::iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_ref) {
+  // initial guess
   xtraj[0] = xcur;
   for (int k = 0; k < (Nt - 1); ++k) {
-    utraj[k] = dynamics_model_[k]->getQuasiStaticInput(xcur);
+    utraj[k] = dynamics_model_[k]->getQuasiStaticInput(xtraj[k]);
+    // utraj[k] += K_guess * (x_ref[k + 1] - xtraj[k]);
     xtraj[k + 1] = dynamics_model_[k]->getValue(xtraj[k], utraj[k]);
   }
 
-  // initialize K and d
-  for (int i = 0; i < Nt - 1; ++i) {
-    d[i].setOnes();
-    K[i].setZero();
-  }
-
   // reference
-  set_reference(x_goal);
-}
-
-void iLQR_Solver::iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal) {
-  // reset problem
-  reset_solver(xcur, x_goal);
+  xref = x_ref;
 
   // DDP Algorithm
   solve();

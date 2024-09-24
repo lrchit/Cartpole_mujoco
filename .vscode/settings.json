@@ -69,7 +69,8 @@
         "semaphore": "cpp",
         "any": "cpp",
         "forward_list": "cpp",
-        "splines": "cpp"
+        "splines": "cpp",
+        "specialfunctions": "cpp"
     },
     "workbench.colorTheme": "Default Dark Modern",
     "workbench.editor.decorations.colors": true,

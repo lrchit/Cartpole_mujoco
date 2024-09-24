@@ -133,22 +133,23 @@
     </worldbody>
 
     <actuator>
-        <motor joint="FR_hip_joint" name="FR_hip" gear="1" ctrllimited="true" ctrlrange="-100 100" />
-        <motor joint="FR_thigh_joint" name="FR_thigh" gear="1" ctrllimited="true"
-            ctrlrange="-100 100" />
-        <motor joint="FR_calf_joint" name="FR_calf" gear="1" ctrllimited="true" ctrlrange="-100 100" />
         <motor joint="FL_hip_joint" name="FL_hip" gear="1" ctrllimited="true" ctrlrange="-100 100" />
         <motor joint="FL_thigh_joint" name="FL_thigh" gear="1" ctrllimited="true"
             ctrlrange="-100 100" />
         <motor joint="FL_calf_joint" name="FL_calf" gear="1" ctrllimited="true" ctrlrange="-100 100" />
-        <motor joint="RR_hip_joint" name="RR_hip" gear="1" ctrllimited="true" ctrlrange="-100 100" />
-        <motor joint="RR_thigh_joint" name="RR_thigh" gear="1" ctrllimited="true"
+        <motor joint="FR_hip_joint" name="FR_hip" gear="1" ctrllimited="true" ctrlrange="-100 100" />
+        <motor joint="FR_thigh_joint" name="FR_thigh" gear="1" ctrllimited="true"
             ctrlrange="-100 100" />
-        <motor joint="RR_calf_joint" name="RR_calf" gear="1" ctrllimited="true" ctrlrange="-100 100" />
+        <motor joint="FR_calf_joint" name="FR_calf" gear="1" ctrllimited="true" ctrlrange="-100 100" />
         <motor joint="RL_hip_joint" name="RL_hip" gear="1" ctrllimited="true" ctrlrange="-100 100" />
         <motor joint="RL_thigh_joint" name="RL_thigh" gear="1" ctrllimited="true"
             ctrlrange="-100 100" />
         <motor joint="RL_calf_joint" name="RL_calf" gear="1" ctrllimited="true" ctrlrange="-100 100" />
+        <motor joint="RR_hip_joint" name="RR_hip" gear="1" ctrllimited="true" ctrlrange="-100 100" />
+        <motor joint="RR_thigh_joint" name="RR_thigh" gear="1" ctrllimited="true"
+            ctrlrange="-100 100" />
+        <motor joint="RR_calf_joint" name="RR_calf" gear="1" ctrllimited="true" ctrlrange="-100 100" />
+        
     </actuator>
 
     <sensor>
@@ -158,31 +159,34 @@
         <gyro name="Body_Gyro" site="imu"/>
         <accelerometer name="Body_Acc" site="imu"/>
 
-        <jointpos name="pos_FR_hip_joint" joint="FR_hip_joint" noise="0.001" />
-        <jointpos name="pos_FR_thigh_joint" joint="FR_thigh_joint" noise="0.001" />
-        <jointpos name="pos_FR_calf_joint" joint="FR_calf_joint" noise="0.001" />
-        <jointpos name="pos_FL_hip_joint" joint="FL_hip_joint" noise="0.001" />
-        <jointpos name="pos_FL_thigh_joint" joint="FL_thigh_joint" noise="0.001" />
-        <jointpos name="pos_FL_calf_joint" joint="FL_calf_joint" noise="0.001" />
-        <jointpos name="pos_RR_hip_joint" joint="RR_hip_joint" noise="0.001" />
-        <jointpos name="pos_RR_thigh_joint" joint="RR_thigh_joint" noise="0.001" />
-        <jointpos name="pos_RR_calf_joint" joint="RR_calf_joint" noise="0.001" />
-        <jointpos name="pos_RL_hip_joint" joint="RL_hip_joint" noise="0.001" />
-        <jointpos name="pos_RL_thigh_joint" joint="RL_thigh_joint" noise="0.001" />
-        <jointpos name="pos_RL_calf_joint" joint="RL_calf_joint" noise="0.001" />
-
-        <jointvel name="vel_FR_hip_joint" joint="FR_hip_joint" noise="0.1" />
-        <jointvel name="vel_FR_thigh_joint" joint="FR_thigh_joint" noise="0.1" />
-        <jointvel name="vel_FR_calf_joint" joint="FR_calf_joint" noise="0.1" />
-        <jointvel name="vel_FL_hip_joint" joint="FL_hip_joint" noise="0.1" />
-        <jointvel name="vel_FL_thigh_joint" joint="FL_thigh_joint" noise="0.1" />
-        <jointvel name="vel_FL_calf_joint" joint="FL_calf_joint" noise="0.1" />
-        <jointvel name="vel_RR_hip_joint" joint="RR_hip_joint" noise="0.1" />
-        <jointvel name="vel_RR_thigh_joint" joint="RR_thigh_joint" noise="0.1" />
-        <jointvel name="vel_RR_calf_joint" joint="RR_calf_joint" noise="0.1" />
-        <jointvel name="vel_RL_hip_joint" joint="RL_hip_joint" noise="0.1" />
-        <jointvel name="vel_RL_thigh_joint" joint="RL_thigh_joint" noise="0.1" />
-        <jointvel name="vel_RL_calf_joint" joint="RL_calf_joint" noise="0.1" />
+        
+        <jointpos name="pos_FL_hip_joint" joint="FL_hip_joint" />
+        <jointpos name="pos_FL_thigh_joint" joint="FL_thigh_joint" />
+        <jointpos name="pos_FL_calf_joint" joint="FL_calf_joint" />
+        <jointpos name="pos_FR_hip_joint" joint="FR_hip_joint" />
+        <jointpos name="pos_FR_thigh_joint" joint="FR_thigh_joint" />
+        <jointpos name="pos_FR_calf_joint" joint="FR_calf_joint" />
+        <jointpos name="pos_RL_hip_joint" joint="RL_hip_joint" />
+        <jointpos name="pos_RL_thigh_joint" joint="RL_thigh_joint" />
+        <jointpos name="pos_RL_calf_joint" joint="RL_calf_joint" />
+        <jointpos name="pos_RR_hip_joint" joint="RR_hip_joint" />
+        <jointpos name="pos_RR_thigh_joint" joint="RR_thigh_joint" />
+        <jointpos name="pos_RR_calf_joint" joint="RR_calf_joint" />
+        
+        
+        <jointvel name="vel_FL_hip_joint" joint="FL_hip_joint"/>
+        <jointvel name="vel_FL_thigh_joint" joint="FL_thigh_joint"/>
+        <jointvel name="vel_FL_calf_joint" joint="FL_calf_joint"/>
+        <jointvel name="vel_FR_hip_joint" joint="FR_hip_joint"/>
+        <jointvel name="vel_FR_thigh_joint" joint="FR_thigh_joint"/>
+        <jointvel name="vel_FR_calf_joint" joint="FR_calf_joint"/>
+        <jointvel name="vel_RL_hip_joint" joint="RL_hip_joint"/>
+        <jointvel name="vel_RL_thigh_joint" joint="RL_thigh_joint"/>
+        <jointvel name="vel_RL_calf_joint" joint="RL_calf_joint"/>
+        <jointvel name="vel_RR_hip_joint" joint="RR_hip_joint"/>
+        <jointvel name="vel_RR_thigh_joint" joint="RR_thigh_joint"/>
+        <jointvel name="vel_RR_calf_joint" joint="RR_calf_joint"/>
+        
 
         <!-- <touch name="FR_touch" site="FR" />
         <touch name="FL_touch" site="FL" />

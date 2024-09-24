@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <pinocchio/fwd.hpp>  // forward declarations must be included first.
+
 #include <chrono>
 #include <iostream>
 #include <vector>

@@ -19,16 +19,16 @@ class MpcController {
     mpcfrequency_ = config["mpcFrequency"].as<double>();
     mrtFrequency_ = config["mrtFrequency"].as<double>();
     useFeedbackPolicy_ = config["useFeedbackPolicy"].as<bool>();
+    double dt = config["dt"].as<double>();
+    int Nt = config["horizon"].as<int>() + 1;
 
     timer.reset();
-    double dt = config["dt"].as<double>();
     interpolator_.reset(new TrajectoryInterpolation(nx_, nu_, dt));
 
-    // reset xcur, x_goal, K_
+    // reset xcur_, xref_, K_
     xcur_.setZero(nx_);
-    int Nt = config["horizon"].as<int>() + 1;
     for (int k = 0; k < Nt; ++k) {
-      xgoal_.push_back(ocs2::vector_t::Zero(nx_));
+      xref_.push_back(ocs2::vector_t::Zero(nx_));
     }
     K_.setZero(nu_, nx_);
 
@@ -49,35 +49,36 @@ class MpcController {
   void callMpcSolver() {
     while (!stop_thread_) {
       const double start_time = timer.getCurrentTime();
+      if (start_time > mpcWaitingTime_) {
+        // call iLQR
+        iLQR_->iLQR_algorithm(xcur_, xref_);
 
-      // call iLQR
-      iLQR_->iLQR_algorithm(xcur_, xgoal_);
-
-      // update interpolator
-      {
-        const std::vector<ocs2::vector_t> xtraj = iLQR_->getStateTrajectory();
-        const std::vector<ocs2::vector_t> utraj = iLQR_->getInputTrajectory();
-        K_ = iLQR_->getFeedBackMatrix();
-        // std::unique_lock<std::mutex> lock(mutex_);  // Manually lock the mutex
-        interpolator_->updateTrajectory(xtraj, utraj, start_time);
-        // lock.unlock();  // Manually unlock the mutex
-        if (!firstMpcSolved_) {
-          firstMpcSolved_ = true;
+        // update interpolator
+        {
+          const std::vector<ocs2::vector_t> xtraj = iLQR_->getStateTrajectory();
+          const std::vector<ocs2::vector_t> utraj = iLQR_->getInputTrajectory();
+          K_ = iLQR_->getFeedBackMatrix();
+          // std::unique_lock<std::mutex> lock(mutex_);  // Manually lock the mutex
+          interpolator_->updateTrajectory(xtraj, utraj, start_time);
+          // lock.unlock();  // Manually unlock the mutex
+          if (!firstMpcSolved_) {
+            firstMpcSolved_ = true;
+          }
         }
-      }
 
-      // sleep if mpc is too fast
-      const double duration_time = timer.getCurrentTime() - start_time;
-      if (duration_time < 1 / mpcfrequency_) {
-        const std::chrono::duration<double> interval(1.0 / mpcfrequency_ - duration_time);
-        std::this_thread::sleep_for(interval);
-      }  // compute for next solution immediately if it's too slow
+        // sleep if mpc is too fast
+        const double duration_time = timer.getCurrentTime() - start_time;
+        if (duration_time < 1 / mpcfrequency_) {
+          const std::chrono::duration<double> interval(1.0 / mpcfrequency_ - duration_time);
+          std::this_thread::sleep_for(interval);
+        }  // compute for next solution immediately if it's too slow
+      }
     }
   }
 
-  void resetProblem(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal) {
+  void resetProblem(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& xref) {
     xcur_ = xcur;
-    xgoal_ = x_goal;
+    xref_ = xref;
   }
 
   void calSolution() {
@@ -121,9 +122,11 @@ class MpcController {
   bool firstMpcSolved_ = false;
 
   ocs2::vector_t xcur_;
-  std::vector<ocs2::vector_t> xgoal_;
+  std::vector<ocs2::vector_t> xref_;
   ocs2::matrix_t K_;
   ocs2::vector_t udes_;
+
+  ocs2::scalar_t mpcWaitingTime_ = 1.0;
 
   Timer timer;
   std::unique_ptr<iLQR_Solver> iLQR_;

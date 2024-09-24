@@ -440,9 +440,7 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
     if (m)
       d = mj_makeData(m);
     if (d) {
-      std::cerr << "444444444444444" << std::endl;
       sim->Load(m, d, filename);
-      std::cerr << "5555555555555555" << std::endl;
       mj_forward(m, d);
 
       // load initial state

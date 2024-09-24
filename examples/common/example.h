@@ -13,9 +13,9 @@ class Example {
     Nt = config["horizon"].as<int>() + 1;
     double nu = config["nu"].as<int>();
     xcur.setZero(nx);
-    x_goal.resize(Nt);
+    xref.resize(Nt);
     for (int k = 0; k < Nt; ++k) {
-      x_goal[k].setZero(nx);
+      xref[k].setZero(nx);
     }
   }
 
@@ -26,14 +26,6 @@ class Example {
   virtual void load_initial_state(mjData* d) = 0;
 
   protected:
-  // normalize angle
-  void angleNormalize(double& angle) {
-    while (angle > std::numbers::pi)
-      angle -= 2 * std::numbers::pi;
-    while (angle < -std::numbers::pi)
-      angle += 2 * std::numbers::pi;
-  }
-
   int Nt;
   int nx;
   int nu;
@@ -41,7 +33,7 @@ class Example {
   std::string yaml_name_;
 
   ocs2::vector_t xcur;
-  std::vector<ocs2::vector_t> x_goal;
+  std::vector<ocs2::vector_t> xref;
 
   std::unique_ptr<MpcController> mpc;
 };

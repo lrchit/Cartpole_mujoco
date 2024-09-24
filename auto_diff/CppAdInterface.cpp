@@ -98,7 +98,7 @@ void CppAdInterface::createModels(ApproximationOrder approximationOrder, bool ve
   // create f: xp -> y and stop tape recording
   ad_fun_t fun(xp, y);
   // Optimize the operation sequence
-  fun.optimize();
+  fun.optimize("no_compare_op");
 
   // generates source code
   CppAD::cg::ModelCSourceGen<scalar_t> sourceGen(fun, modelName_);

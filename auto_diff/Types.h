@@ -110,6 +110,9 @@ template <typename SCALAR_T>
 using vector3_s_t = Eigen::Matrix<SCALAR_T, 3, 1>;
 
 template <typename SCALAR_T>
+using vector6_s_t = Eigen::Matrix<SCALAR_T, 6, 1>;
+
+template <typename SCALAR_T>
 using matrix3_s_t = Eigen::Matrix<SCALAR_T, 3, 3>;
 
 }  // namespace ocs2

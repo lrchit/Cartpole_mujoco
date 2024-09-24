@@ -3,11 +3,16 @@
 
 #include <Types.h>
 
+#include <RotationTransforms.h>
+
 class StateEstimator {
   public:
   StateEstimator(YAML::Node config) {
     nq_ = config["nq"].as<int>();
     nv_ = config["nv"].as<int>();
+
+    q_.resize(nq_);
+    qd_.resize(nv_);
   }
 
   void callStateEstimator(double* sensordata) { cheaterComputeState(sensordata); }
@@ -23,13 +28,18 @@ class StateEstimator {
 
     // --- get rpy ---
     int quat_sensor_adr = 3;
-    q_.segment(3, 4) = Eigen::Vector4d(
-        *(sensordata + quat_sensor_adr + 0), *(sensordata + quat_sensor_adr + 1), *(sensordata + quat_sensor_adr + 2), *(sensordata + quat_sensor_adr + 3));
+    Eigen::Quaternion<double> quaternion;
+    quaternion.w() = *(sensordata + quat_sensor_adr + 0);
+    quaternion.x() = *(sensordata + quat_sensor_adr + 1);
+    quaternion.y() = *(sensordata + quat_sensor_adr + 2);
+    quaternion.z() = *(sensordata + quat_sensor_adr + 3);
+    const Eigen::Vector3d zyxEulerAngle = ocs2::quatToZyx(quaternion);
+    q_.segment(3, 3) = zyxEulerAngle;
 
     // --- get leg_qpos ---
     int qpos_sensor_adr = 16;
-    for (int i = 0; i < nq_ - 7; ++i) {
-      q_[7 + i] = *(sensordata + qpos_sensor_adr + i);
+    for (int i = 0; i < nq_ - 6; ++i) {
+      q_[6 + i] = *(sensordata + qpos_sensor_adr + i);
     }
 
     // --- get linvel ---
@@ -38,7 +48,9 @@ class StateEstimator {
 
     // --- get angvel ---
     int angvel_sensor_adr = 10;
-    qd_.segment(3, 3) = Eigen::Vector3d({*(sensordata + angvel_sensor_adr), *(sensordata + angvel_sensor_adr + 1), *(sensordata + angvel_sensor_adr + 2)});
+    const Eigen::Vector3d localAngularVel =
+        Eigen::Vector3d({*(sensordata + angvel_sensor_adr), *(sensordata + angvel_sensor_adr + 1), *(sensordata + angvel_sensor_adr + 2)});
+    qd_.segment(3, 3) = ocs2::getEulerAnglesZyxDerivativesFromLocalAngularVelocity(zyxEulerAngle, localAngularVel);
 
     // --- get leg_qvel ---
     int qvel_sensor_adr = 28;

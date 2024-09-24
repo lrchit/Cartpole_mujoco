@@ -27,12 +27,16 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/build/bin)
 
 set(eigen_INCLUDE_DIRS /usr/local/include/eigen3)
 set(cppad_INCLUDE_DIRS /usr/local/include/cppad)
+set(pinocchio_INCLUDE_DIRS /usr/local/include/pinocchio)
 
 find_package(glfw3 REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PythonLibs REQUIRED)
+find_package(urdfdom REQUIRED)
+find_package(pinocchio REQUIRED)
+find_package(Python3 COMPONENTS Development)
 find_package(Boost REQUIRED COMPONENTS filesystem system)
 
 add_compile_definitions(EIGEN_STACK_ALLOCATION_LIMIT=0)
@@ -45,6 +49,7 @@ include_directories(
     ./
     ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/include
     ${EIGEN3_INCLUDE_DIR}
+    ${pinocchio_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
     simulate
     controllers/iLQR
@@ -83,6 +88,20 @@ aux_source_directory(examples/common COMMON_SRC)
 aux_source_directory(examples/cartpole CARTPOLE_SRC)
 aux_source_directory(examples/quadruped QUADRUPED_SRC)
 
+add_library(shared_lib INTERFACE)
+target_link_libraries(shared_lib INTERFACE
+  glfw
+  ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/lib/libmujoco.so.3.1.0
+  lodepng
+  pinocchio
+  urdfdom_model
+  yaml-cpp::yaml-cpp
+  ${PYTHON_LIBRARIES}
+  ${Boost_LIBRARIES}
+  OpenMP::OpenMP_CXX
+  Python3::Python
+)
+
 add_executable(main main.cpp
                     ${ILQR_SRC}
                     ${SIM_SRC}
@@ -93,13 +112,24 @@ add_executable(main main.cpp
 )
 
 target_link_libraries(main
-    glfw
-    ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/lib/libmujoco.so.3.1.0
-    lodepng
-    yaml-cpp::yaml-cpp
-    ${PYTHON_LIBRARIES}
-    ${Boost_LIBRARIES}
-    OpenMP::OpenMP_CXX
+  shared_lib
 )
+
+
+# test
+aux_source_directory(test TEST_SRC)
+
+add_executable(test test/testForwardDynamics.cpp
+  ${ILQR_SRC}
+  ${SIM_SRC}
+  ${AUTO_DIFF_SRC}
+  ${COMMON_SRC}
+  ${CARTPOLE_SRC}
+  ${QUADRUPED_SRC}
+)
+target_link_libraries(test
+  shared_lib
+)
+
 
 

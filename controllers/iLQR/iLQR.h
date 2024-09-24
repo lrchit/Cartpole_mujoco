@@ -40,18 +40,16 @@ struct Derivatives {
 
   // dynamics 1st order approximation
   std::vector<ocs2::matrix_t> fx;
-  std::vector<ocs2::vector_t> fu;
+  std::vector<ocs2::matrix_t> fu;
 };
 
 class iLQR_Solver {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   public:
-  iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost);
+  iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost, const ocs2::matrix_t Kguess);
   ~iLQR_Solver();
 
-  void iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal);
-
-  void set_reference(const std::vector<ocs2::vector_t>& x_goal) { xgoal = x_goal; }
+  void iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_ref);
 
   std::vector<ocs2::vector_t> getStateTrajectory() { return xtraj; }
   std::vector<ocs2::vector_t> getInputTrajectory() { return utraj; }
@@ -64,8 +62,6 @@ class iLQR_Solver {
   ocs2::scalar_t line_search(ocs2::scalar_t delta_J, ocs2::scalar_t J);
   void solve();
 
-  void reset_solver(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_goal);
-
   void traj_plot();
 
   int nx, nu;
@@ -77,12 +73,15 @@ class iLQR_Solver {
   std::vector<ocs2::vector_t> xtraj;
   std::vector<ocs2::vector_t> utraj;
   std::vector<ocs2::scalar_t> Jtraj;
-  std::vector<ocs2::vector_t> xgoal;
+  std::vector<ocs2::vector_t> xref;
 
   std::vector<ocs2::vector_t> p;
   std::vector<ocs2::matrix_t> P;
   std::vector<ocs2::vector_t> d;
   std::vector<ocs2::matrix_t> K;
+
+  // feedback gain for initial guess
+  ocs2::matrix_t K_guess;
 
   DDP_Matrix ddp_matrix;
   Derivatives derivatives;

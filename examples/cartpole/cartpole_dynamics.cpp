@@ -26,6 +26,22 @@ Cartpole_Dynamics::Cartpole_Dynamics(YAML::Node config) {
 
 Cartpole_Dynamics::~Cartpole_Dynamics() {}
 
+ocs2::vector_t Cartpole_Dynamics::getValue(const ocs2::vector_t& x, const ocs2::vector_t& u) {
+  const ocs2::vector_t stateInput = (ocs2::vector_t(x.rows() + u.rows()) << x, u).finished();
+  return systemFlowMapCppAdInterfacePtr_->getFunctionValue(stateInput);
+}
+
+std::pair<ocs2::matrix_t, ocs2::matrix_t> Cartpole_Dynamics::getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u) {
+  const ocs2::vector_t stateInput = (ocs2::vector_t(x.rows() + u.rows()) << x, u).finished();
+  const ocs2::matrix_t Jacobian = systemFlowMapCppAdInterfacePtr_->getJacobian(stateInput);
+  if (Jacobian == ocs2::matrix_t::Zero(nx, nx + nu)) {
+    std::cerr << "jacobian =\n" << Jacobian << std::endl;
+    std::cerr << "x =\n" << x.transpose() << std::endl;
+    std::cerr << "u =\n" << u.transpose() << std::endl;
+  }
+  return std::pair(Jacobian.leftCols(nx), Jacobian.rightCols(nu));
+}
+
 template <typename T>
 ocs2::vector_s_t<T> Cartpole_Dynamics::cartpole_dynamics_model(const ocs2::vector_s_t<T>& x, const ocs2::vector_s_t<T>& u) {
   ocs2::vector_s_t<T> dx(nx);  // 状态变量的变化率

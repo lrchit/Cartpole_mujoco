@@ -1,43 +1,137 @@
 
-nx: 37
+nx: 36
 nu: 12
 
-nq: 19
+nq: 18
 nv: 18
 
 # cost
 Q:
-  q1: 1
-  q2: 1
-  q3: 0.1
-  q4: 0.1
+  pos:
+    x: 500
+    y: 500
+    z: 500
+  zyxangle:
+    z: 100
+    y: 100
+    x: 100
+  qj:
+    abad: 30
+    hip: 30
+    knee: 30
+  linvel:
+    x: 10
+    y: 10
+    z: 10
+  zyxanglevel:
+    z: 10
+    y: 10
+    x: 10
+  qdj:
+    abad: 5
+    hip: 5
+    knee: 5
 Qn:
-  q1: 500
-  q2: 500
-  q3: 100
-  q4: 100
+  pos:
+    x: 500
+    y: 500
+    z: 500
+  zyxangle:
+    z: 100
+    y: 100
+    x: 100
+  qj:
+    abad: 30
+    hip: 30
+    knee: 30
+  linvel:
+    x: 10
+    y: 10
+    z: 10
+  zyxanglevel:
+    z: 10
+    y: 10
+    x: 10
+  qdj:
+    abad: 5
+    hip: 5
+    knee: 5
 R:
-  r1: 0.01
+  r1: 0.001
+  r2: 0.001
+  r3: 0.001
+  r4: 0.001
+  r5: 0.001
+  r6: 0.001
+  r7: 0.001
+  r8: 0.001
+  r9: 0.001
+  r10: 0.001
+  r11: 0.001
+  r12: 0.001
+
+contactModelParam:
+  spring_k: 30
+  damper_d: 0
+  alpha: 10
+  alpha_n: 200
+  zOffset: -0.0
+  smoothing: 1
+  
+# feedforward gain
+Kguess:
+  kp:
+    abad: 0
+    hip: 0
+    knee: 0
+  kd:
+    abad: 100
+    hip: 100
+    knee: 100
 
 # initial state
 initial_state:
-  p1: -0.1
-  p2: 1.1
-  p3: -2.6
-  p4: 0.1
-  p5: 1.1
-  p6: -2.6
-  p7: -0.1
-  p8: 1.1
-  p9: -2.6
-  p10: 0.1
-  p11: 1.1
-  p12: -2.6
+  p1: -0.0
+  p2: 0.72
+  p3: -1.44
+  p4: 0.0
+  p5: 0.72
+  p6: -1.44
+  p7: -0.0
+  p8: 0.72
+  p9: -1.44
+  p10: 0.0
+  p11: 0.72
+  p12: -1.44
+
+# norminal state
+norminal_state:
+  p1: 0
+  p2: 0
+  p3: 0.3
+  p4: 0
+  p5: 0
+  p6: 0
+  p7: -0.0
+  p8: 0.72
+  p9: -1.44
+  p10: 0.0
+  p11: 0.72
+  p12: -1.44
+  p13: -0.0
+  p14: 0.72
+  p15: -1.44
+  p16: 0.0
+  p17: 0.72
+  p18: -1.44
+
+# cppad code gen
+recompileCppAdLibrary: false
 
 # mpc settings
-dt: 0.005
-horizon: 100
-mpcFrequency: 500
+dt: 0.02
+horizon: 20
+mpcFrequency: 50
 mrtFrequency: 500
 useFeedbackPolicy: false
 
