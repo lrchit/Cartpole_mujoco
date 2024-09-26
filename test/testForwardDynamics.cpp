@@ -30,6 +30,8 @@ int main() {
   const pinocchio::ModelTpl<ocs2::scalar_t> model = createPinocchioModel(urdfFile, jointNames);
   pinocchio::Data data(model);
 
+  std::cerr << "njoints" << model.njoints << std::endl;
+
   lambda << 0, 0, pinocchio::computeTotalMass(model) * 9.81 / 4, 0, 0, pinocchio::computeTotalMass(model) * 9.81 / 4, 0, 0,
       pinocchio::computeTotalMass(model) * 9.81 / 4, 0, 0, pinocchio::computeTotalMass(model) * 9.81 / 4;
   std::cerr << "lambda = " << lambda.transpose() << std::endl;

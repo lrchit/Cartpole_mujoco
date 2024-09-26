@@ -10,6 +10,8 @@
 #include "pinocchio/parsers/urdf.hpp"
 #include "pinocchio/multibody/model.hpp"
 
+#include <Types.h>
+
 pinocchio::ModelTpl<ocs2::scalar_t> createPinocchioModel(const std::string& urdfFilePath, const std::vector<std::string>& jointNames) {
   using joint_pair_t = std::pair<const std::string, std::shared_ptr<::urdf::Joint>>;
 
