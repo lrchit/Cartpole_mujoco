@@ -35,6 +35,8 @@ class Quadruped_Example : public Example {
       xtarget[nq + i] = v_init[i];
     }
 
+    timer.reset();
+
     const std::string urdfFile = "../models/quadruped/urdf/a1.urdf";
     const std::vector<std::string> jointNames{"FL_hip_joint", "FL_thigh_joint", "FL_calf_joint", "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint", "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"};
@@ -65,6 +67,13 @@ class Quadruped_Example : public Example {
     xcur.head(nq) = stateEstimator->getGeneralizedCoordinates();
     xcur.tail(nv) = stateEstimator->getGeneralizedVelocities();
 
+    if (timer.getCurrentTime() > 5) {
+      xtarget[4] = 0.8;
+    }
+    if (timer.getCurrentTime() > 8) {
+      xtarget[0] = xcur[0] + 0.3;
+      xtarget[4] = 0.0;
+    }
     std::vector<ocs2::vector_t> x_ref = MakeLinearInterpolation(xcur, xtarget);
     // std::vector<ocs2::vector_t> x_ref(Nt, xtarget);
     mpc->resetProblem(xcur, x_ref);
@@ -88,5 +97,7 @@ class Quadruped_Example : public Example {
 
   int nq;
   int nv;
+
+  Timer timer;
   std::unique_ptr<StateEstimator> stateEstimator;
 };
