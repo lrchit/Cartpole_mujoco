@@ -6,14 +6,14 @@
 #include <mutex>
 #include <thread>
 
-#include <iLQR.h>
+#include <controller.h>
 #include <interpolation.h>
 
 class MpcController {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  MpcController(YAML::Node config, std::unique_ptr<iLQR_Solver> iLQR) : iLQR_(std::move(iLQR)) {
+  MpcController(YAML::Node config, std::unique_ptr<ControllerBase> controller) : controller_(std::move(controller)) {
     nx_ = config["nx"].as<int>();
     nu_ = config["nu"].as<int>();
     mpcfrequency_ = config["mpcFrequency"].as<double>();
@@ -50,14 +50,14 @@ class MpcController {
     while (!stop_thread_) {
       const double start_time = timer.getCurrentTime();
       if (start_time > mpcWaitingTime_) {
-        // call iLQR
-        iLQR_->iLQR_algorithm(xcur_, xref_);
+        // call controller
+        controller_->launch_controller(xcur_, xref_);
 
         // update interpolator
         {
-          const std::vector<ocs2::vector_t> xtraj = iLQR_->getStateTrajectory();
-          const std::vector<ocs2::vector_t> utraj = iLQR_->getInputTrajectory();
-          K_ = iLQR_->getFeedBackMatrix();
+          const std::vector<ocs2::vector_t> xtraj = controller_->getStateTrajectory();
+          const std::vector<ocs2::vector_t> utraj = controller_->getInputTrajectory();
+          K_ = controller_->getFeedBackMatrix();
           // std::unique_lock<std::mutex> lock(mutex_);  // Manually lock the mutex
           interpolator_->updateTrajectory(xtraj, utraj, start_time);
           // lock.unlock();  // Manually unlock the mutex
@@ -68,6 +68,7 @@ class MpcController {
 
         // sleep if mpc is too fast
         const double duration_time = timer.getCurrentTime() - start_time;
+        // std::cerr << "mpc solve time = " << duration_time << std::endl;
         if (duration_time < 1 / mpcfrequency_) {
           const std::chrono::duration<double> interval(1.0 / mpcfrequency_ - duration_time);
           std::this_thread::sleep_for(interval);
@@ -77,6 +78,7 @@ class MpcController {
   }
 
   void resetProblem(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& xref) {
+    assert(xcur == xref[0]);
     xcur_ = xcur;
     xref_ = xref;
   }
@@ -129,7 +131,7 @@ class MpcController {
   ocs2::scalar_t mpcWaitingTime_ = 1.0;
 
   Timer timer;
-  std::unique_ptr<iLQR_Solver> iLQR_;
+  std::unique_ptr<ControllerBase> controller_;
   std::unique_ptr<TrajectoryInterpolation> interpolator_;
 
   std::mutex mutex_;

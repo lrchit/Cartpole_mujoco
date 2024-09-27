@@ -198,7 +198,7 @@ void iLQR_Solver::solve() {
   lineSeachTime_.push_back(lineSeachTimeTotal);
 }
 
-void iLQR_Solver::iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_ref) {
+void iLQR_Solver::launch_controller(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_ref) {
   // initial guess
   xtraj[0] = xcur;
   for (int k = 0; k < (Nt - 1); ++k) {

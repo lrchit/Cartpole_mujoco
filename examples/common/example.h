@@ -11,12 +11,8 @@ class Example {
     nx = config["nx"].as<int>();
     nu = config["nu"].as<int>();
     Nt = config["horizon"].as<int>() + 1;
-    double nu = config["nu"].as<int>();
     xcur.setZero(nx);
-    xref.resize(Nt);
-    for (int k = 0; k < Nt; ++k) {
-      xref[k].setZero(nx);
-    }
+    xtarget.setZero(nx);
   }
 
   virtual ~Example() = default;
@@ -33,7 +29,7 @@ class Example {
   std::string yaml_name_;
 
   ocs2::vector_t xcur;
-  std::vector<ocs2::vector_t> xref;
+  ocs2::vector_t xtarget;
 
   std::unique_ptr<MpcController> mpc;
 };

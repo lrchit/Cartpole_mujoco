@@ -80,9 +80,9 @@ class TrajectoryOptimizer {
   int num_equality_constraints() const { return unactuated_dofs().size() * num_steps(); }
 
   /**
-   * Convienience function to get a const reference to the solver parameters.
+   * Convienience function to get a mutable reference to the solver parameters.
   */
-  const SolverParameters& params() const { return params_; }
+  SolverParameters& params() { return params_; }
 
   /**
    * Convienience function to get a const reference to the problem definition.
@@ -848,7 +848,7 @@ class TrajectoryOptimizer {
   std::vector<int> unactuated_dofs_;
 
   // Various parameters
-  const SolverParameters params_;
+  SolverParameters params_;
 
   // contact points
   std::vector<pinocchio::FrameIndex> footId_;

@@ -2,6 +2,8 @@
 
 #include "convergence_criteria_tolerances.h"
 
+#include <yaml-cpp/yaml.h>
+
 namespace idto {
 namespace optimizer {
 
@@ -63,6 +65,28 @@ struct SolverParameters {
     kPentaDiagonalLu,
   };
 
+  // initialize
+  SolverParameters(YAML::Node config) {
+    convergence_tolerances.rel_cost_reduction = config["tolerances"]["rel_cost_reduction"].as<double>();
+    convergence_tolerances.abs_cost_reduction = config["tolerances"]["abs_cost_reduction"].as<double>();
+    convergence_tolerances.rel_gradient_along_dq = config["tolerances"]["rel_gradient_along_dq"].as<double>();
+    convergence_tolerances.abs_gradient_along_dq = config["tolerances"]["abs_gradient_along_dq"].as<double>();
+    convergence_tolerances.rel_state_change = config["tolerances"]["rel_state_change"].as<double>();
+    convergence_tolerances.abs_state_change = config["tolerances"]["abs_state_change"].as<double>();
+    equality_constraints = config["equality_constraints"].as<bool>();
+    scaling = config["scaling"].as<bool>();
+    method = static_cast<SolverMethod>(config["method"].as<int>());
+    linear_solver = static_cast<SolverParameters::LinearSolverType>(config["linear_solver"].as<int>());
+    gradients_method = static_cast<GradientsMethod>(config["gradients_method"].as<int>());
+    num_threads = config["num_threads"].as<int>();
+    contact_stiffness = config["contact_stiffness"].as<double>();
+    dissipation_velocity = config["dissipation_velocity"].as<double>();
+    smoothing_factor = config["smoothing_factor"].as<double>();
+    friction_coefficient = config["friction_coefficient"].as<double>();
+    stiction_velocity = config["stiction_velocity"].as<double>();
+    which_contact_model = config["which_contact_model"].as<double>();
+  }
+
   // Flag for whether we should check for convergence, along with default
   // tolerances for the convergence check
   bool check_convergence = false;
@@ -88,7 +112,7 @@ struct SolverParameters {
   LinearSolverType linear_solver{LinearSolverType::kPentaDiagonalLu};
 
   // Flag for whether to print out iteration data
-  bool verbose{true};
+  bool verbose{false};
 
   // Flag for whether to print (and compute) additional slow-to-compute
   // debugging info, like the condition number, at each iteration

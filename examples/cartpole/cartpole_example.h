@@ -6,6 +6,7 @@
 #include <cartpole_cost.h>
 #include <cartpole_dynamics.h>
 #include <mpc.h>
+#include <iLQR.h>
 
 class Cartpole_Example : public Example {
   public:
@@ -16,7 +17,7 @@ class Cartpole_Example : public Example {
 
     std::shared_ptr<Cartpole_Dynamics> cartpole_dynamics = std::make_shared<Cartpole_Dynamics>(config);
     std::shared_ptr<Cartpole_Cost> cartpole_cost = std::make_shared<Cartpole_Cost>(config);
-    std::unique_ptr<iLQR_Solver> iLQR = std::make_unique<iLQR_Solver>(config, cartpole_dynamics, cartpole_cost, Kguess);
+    std::unique_ptr<ControllerBase> iLQR = std::make_unique<iLQR_Solver>(config, cartpole_dynamics, cartpole_cost, Kguess);
     mpc.reset(new MpcController(config, std::move(iLQR)));
   }
 
@@ -34,8 +35,9 @@ class Cartpole_Example : public Example {
   virtual void computeInput(mjData* d) override {
     xcur << d->sensordata[0], d->sensordata[1], d->sensordata[2], d->sensordata[3];
     angleNormalize(xcur[1]);
-
-    mpc->resetProblem(xcur, xref);
+    std::vector<ocs2::vector_t> x_ref(Nt, xtarget);
+    x_ref[0] = xcur;
+    mpc->resetProblem(xcur, x_ref);
 
     const ocs2::vector_t command = mpc->getCommand();
     for (int i = 0; i < nu; ++i) {

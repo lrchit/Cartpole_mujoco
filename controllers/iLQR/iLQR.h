@@ -12,6 +12,8 @@
 #include <dynamics.h>
 #include <cost.h>
 
+#include <controller.h>
+
 // #define pi 3.1416
 
 namespace plt = matplotlibcpp;
@@ -43,17 +45,15 @@ struct Derivatives {
   std::vector<ocs2::matrix_t> fu;
 };
 
-class iLQR_Solver {
+class iLQR_Solver : public ControllerBase {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   public:
   iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost, const ocs2::matrix_t Kguess);
   ~iLQR_Solver();
 
-  void iLQR_algorithm(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_ref);
+  virtual void launch_controller(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_ref) override;
 
-  std::vector<ocs2::vector_t> getStateTrajectory() { return xtraj; }
-  std::vector<ocs2::vector_t> getInputTrajectory() { return utraj; }
-  ocs2::matrix_t getFeedBackMatrix() { return K[0]; }
+  virtual ocs2::matrix_t getFeedBackMatrix() override { return K[0]; }
 
   private:
   ocs2::scalar_t calCost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj);
@@ -70,10 +70,7 @@ class iLQR_Solver {
   bool verbose_cal_time = false;
   int max_iteration = 1000;
 
-  std::vector<ocs2::vector_t> xtraj;
-  std::vector<ocs2::vector_t> utraj;
   std::vector<ocs2::scalar_t> Jtraj;
-  std::vector<ocs2::vector_t> xref;
 
   std::vector<ocs2::vector_t> p;
   std::vector<ocs2::matrix_t> P;

@@ -3,6 +3,7 @@
 #include <vector>
 
 #include <Types.h>
+#include <yaml-cpp/yaml.h>
 
 namespace idto {
 namespace optimizer {
@@ -19,6 +20,40 @@ namespace optimizer {
  *      [ 0   Qv ].
  */
 struct ProblemDefinition {
+  // initialize
+  ProblemDefinition(YAML::Node config) {
+    num_steps = config["horizon"].as<int>();
+    q_init.setZero(18);
+    v_init.setZero(18);
+    Qq.setZero(18, 18);
+    Qv.setZero(18, 18);
+    Qf_q.setZero(18, 18);
+    Qf_v.setZero(18, 18);
+    R.setZero(18, 18);
+
+    std::vector<double> q_init_vector = config["q_init"].as<std::vector<double>>();
+    std::vector<double> v_init_vector = config["v_init"].as<std::vector<double>>();
+    std::vector<double> Qq_vector = config["Qq"].as<std::vector<double>>();
+    std::vector<double> Qv_vector = config["Qv"].as<std::vector<double>>();
+    std::vector<double> Qf_q_vector = config["Qfq"].as<std::vector<double>>();
+    std::vector<double> Qf_v_vector = config["Qfv"].as<std::vector<double>>();
+    std::vector<double> R_vector = config["R"].as<std::vector<double>>();
+    for (int i = 0; i < 18; ++i) {
+      q_init[i] = q_init_vector[i];
+      v_init[i] = v_init_vector[i];
+      Qq.diagonal()[i] = Qq_vector[i];
+      Qv.diagonal()[i] = Qv_vector[i];
+      Qf_q.diagonal()[i] = Qf_q_vector[i];
+      Qf_v.diagonal()[i] = Qf_v_vector[i];
+      R.diagonal()[i] = R_vector[i];
+    }
+
+    for (int k = 0; k < num_steps + 1; ++k) {
+      q_nom.push_back(q_init);
+      v_nom.push_back(v_init);
+    }
+  }
+
   // Time horizon (number of steps) for the optimization problem
   int num_steps;
 

@@ -70,7 +70,9 @@
         "any": "cpp",
         "forward_list": "cpp",
         "splines": "cpp",
-        "specialfunctions": "cpp"
+        "specialfunctions": "cpp",
+        "unordered_set": "cpp",
+        "bitset": "cpp"
     },
     "workbench.colorTheme": "Default Dark Modern",
     "workbench.editor.decorations.colors": true,

@@ -1,75 +1,51 @@
 
 #pragma once
 
+#include <pinocchio/fwd.hpp>  // always include it before any other header
+
+#include <pinocchio/parsers/urdf.hpp>
+#include "pinocchio/algorithm/frames.hpp"
+#include "pinocchio/algorithm/jacobian.hpp"
+#include "pinocchio/algorithm/joint-configuration.hpp"
+#include "pinocchio/algorithm/kinematics.hpp"
+#include "pinocchio/algorithm/rnea.hpp"
+#include "pinocchio/parsers/sample-models.hpp"
+#include "pinocchio/parsers/urdf.hpp"
+#include "pinocchio/spatial/explog.hpp"
+#include <pinocchio/algorithm/center-of-mass.hpp>
+
 #include <utils.h>
-#include <quadruped_cost.h>
-#include <quadruped_dynamics.h>
 #include <state_estimator.h>
 
 #include <mpc.h>
+#include <idto.h>
 
 class Quadruped_Example : public Example {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Quadruped_Example(std::string yaml_name) : Example(yaml_name) {
     YAML::Node config = YAML::LoadFile(yaml_name);
-
     nq = config["nq"].as<int>();
     nv = config["nv"].as<int>();
-    if (nx != nq + nv) {
-      throw std::invalid_argument("nx != nq + nv");
+
+    std::vector<double> q_init = config["q_init"].as<std::vector<double>>();
+    std::vector<double> v_init = config["v_init"].as<std::vector<double>>();
+    for (int i = 0; i < nq; ++i) {
+      xtarget[i] = q_init[i];
+      xtarget[nq + i] = v_init[i];
     }
 
-    xref[0][0] = config["norminal_state"]["p1"].as<double>();
-    xref[0][1] = config["norminal_state"]["p2"].as<double>();
-    xref[0][2] = config["norminal_state"]["p3"].as<double>();
-    xref[0][3] = config["norminal_state"]["p4"].as<double>();
-    xref[0][4] = config["norminal_state"]["p5"].as<double>();
-    xref[0][5] = config["norminal_state"]["p6"].as<double>();
-    xref[0][6] = config["norminal_state"]["p7"].as<double>();
-    xref[0][7] = config["norminal_state"]["p8"].as<double>();
-    xref[0][8] = config["norminal_state"]["p9"].as<double>();
-    xref[0][9] = config["norminal_state"]["p10"].as<double>();
-    xref[0][10] = config["norminal_state"]["p11"].as<double>();
-    xref[0][11] = config["norminal_state"]["p12"].as<double>();
-    xref[0][12] = config["norminal_state"]["p13"].as<double>();
-    xref[0][13] = config["norminal_state"]["p14"].as<double>();
-    xref[0][14] = config["norminal_state"]["p15"].as<double>();
-    xref[0][15] = config["norminal_state"]["p16"].as<double>();
-    xref[0][16] = config["norminal_state"]["p17"].as<double>();
-    xref[0][17] = config["norminal_state"]["p18"].as<double>();
-    for (int k = 1; k < Nt; ++k) {
-      xref[k] = xref[0];
-    }
-
-    ocs2::matrix_t Kguess = ocs2::matrix_t::Zero(12, 36);
-    for (int leg = 0; leg < 4; ++leg) {
-      Kguess(3 * leg + 0, 6 + 3 * leg + 0) = config["Kguess"]["kp"]["abad"].as<double>();
-      Kguess(3 * leg + 1, 6 + 3 * leg + 1) = config["Kguess"]["kp"]["hip"].as<double>();
-      Kguess(3 * leg + 2, 6 + 3 * leg + 2) = config["Kguess"]["kp"]["knee"].as<double>();
-      Kguess(3 * leg + 0, 24 + 3 * leg + 0) = config["Kguess"]["kd"]["abad"].as<double>();
-      Kguess(3 * leg + 1, 24 + 3 * leg + 1) = config["Kguess"]["kd"]["hip"].as<double>();
-      Kguess(3 * leg + 2, 24 + 3 * leg + 2) = config["Kguess"]["kd"]["knee"].as<double>();
-    }
-    std::cerr << Kguess << std::endl;
-
-    // pinocchio model
     const std::string urdfFile = "../models/quadruped/urdf/a1.urdf";
-    const std::vector<std::string> footName{"FL_foot", "FR_foot", "RL_foot", "RR_foot"};
     const std::vector<std::string> jointNames{"FL_hip_joint", "FL_thigh_joint", "FL_calf_joint", "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint", "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"};
     const pinocchio::ModelTpl<ocs2::scalar_t> model = createPinocchioModel(urdfFile, jointNames);
-    pinocchio::DataTpl<ocs2::scalar_t> data = pinocchio::DataTpl<ocs2::scalar_t>(model);
-    std::vector<pinocchio::FrameIndex> footId;
-    for (int leg = 0; leg < 4; ++leg) {
-      footId.push_back(model.getFrameId(footName[leg]));
-    }
+    pinocchio::DataTpl<ocs2::scalar_t> data(model);
+    const std::vector<pinocchio::FrameIndex> footId{
+        model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"), model.getFrameId("RR_foot")};
+    std::unique_ptr<idto::optimizer::idto> inverseDynamicsController = std::make_unique<idto::optimizer::idto>(config, model, data, footId);
 
     stateEstimator.reset(new StateEstimator(config));
-    std::shared_ptr<Quadruped_Dynamics> quadruped_dynamics = std::make_shared<Quadruped_Dynamics>(config, model, footId);
-    std::shared_ptr<Quadruped_Cost> quadruped_cost = std::make_shared<Quadruped_Cost>(config, model, footId);
-    std::unique_ptr<iLQR_Solver> iLQR = std::make_unique<iLQR_Solver>(config, quadruped_dynamics, quadruped_cost, Kguess);
-    mpc.reset(new MpcController(config, std::move(iLQR)));
+    mpc.reset(new MpcController(config, std::move(inverseDynamicsController)));
   }
 
   ~Quadruped_Example() {}
@@ -78,39 +54,39 @@ class Quadruped_Example : public Example {
     YAML::Node config = YAML::LoadFile(yaml_name_);
 
     // Initial state
-    d->qpos[7] = config["initial_state"]["p1"].as<double>();
-    d->qpos[8] = config["initial_state"]["p2"].as<double>();
-    d->qpos[9] = config["initial_state"]["p3"].as<double>();
-    d->qpos[10] = config["initial_state"]["p4"].as<double>();
-    d->qpos[11] = config["initial_state"]["p5"].as<double>();
-    d->qpos[12] = config["initial_state"]["p6"].as<double>();
-    d->qpos[13] = config["initial_state"]["p7"].as<double>();
-    d->qpos[14] = config["initial_state"]["p8"].as<double>();
-    d->qpos[15] = config["initial_state"]["p9"].as<double>();
-    d->qpos[16] = config["initial_state"]["p10"].as<double>();
-    d->qpos[17] = config["initial_state"]["p11"].as<double>();
-    d->qpos[18] = config["initial_state"]["p12"].as<double>();
+    std::vector<double> q_init = config["initial_state"].as<std::vector<double>>();
+    for (int i = 0; i < nq - 7; ++i) {
+      d->qpos[i + 7] = q_init[i];
+    }
   }
 
   virtual void computeInput(mjData* d) override {
     stateEstimator->callStateEstimator(d->sensordata);
     xcur.head(nq) = stateEstimator->getGeneralizedCoordinates();
-    xcur.head(nq) << 0, 0, 0.3, 0, 0, 0, -0., 0.72, -1.44, 0., 0.72, -1.44, -0., 0.72, -1.44, 0., 0.72, -1.44;
     xcur.tail(nv) = stateEstimator->getGeneralizedVelocities();
 
-    mpc->resetProblem(xcur, xref);
-    // std::cerr << "input = " << mpc->getCommand().transpose() << std::endl;
+    std::vector<ocs2::vector_t> x_ref = MakeLinearInterpolation(xcur, xtarget);
+    // std::vector<ocs2::vector_t> x_ref(Nt, xtarget);
+    mpc->resetProblem(xcur, x_ref);
 
-    // const ocs2::vector_t input = mpc->getCommand();
-    const ocs2::vector_t input = ocs2::vector_t::Zero(nu);
+    const ocs2::vector_t input = mpc->getCommand();
     for (int i = 0; i < nu; ++i) {
-      d->ctrl[0] = fmin(fmax(input[i], -30), 30);
+      d->ctrl[i] = fmin(fmax(input[i], -30), 30);
     }
   }
 
   private:
+  std::vector<ocs2::vector_t> MakeLinearInterpolation(const ocs2::vector_t& start, const ocs2::vector_t& end) {
+    std::vector<ocs2::vector_t> result;
+    double lambda = 0;
+    for (int i = 0; i < Nt; ++i) {
+      lambda = i / (Nt - 1.0);
+      result.push_back((1 - lambda) * start + lambda * end);
+    }
+    return result;
+  }
+
   int nq;
   int nv;
-
   std::unique_ptr<StateEstimator> stateEstimator;
 };

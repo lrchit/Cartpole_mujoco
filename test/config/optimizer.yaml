@@ -60,8 +60,8 @@ Qfv : [1, 1, 1,
       0.1, 0.1, 0.1]
 
 # Problem definition parameters
-time_step : 0.05   # Discretization timestep (seconds)
-num_steps : 20     # number of timesteps
+dt : 0.05        # Discretization timestep (seconds)
+horizon : 20     # number of timesteps
 
 # Solver parameters
 method : 1    # solver method, {linesearch, trust_region}

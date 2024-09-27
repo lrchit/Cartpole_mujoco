@@ -52,12 +52,13 @@ include_directories(
     ${pinocchio_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
     simulate
+    controllers
     controllers/iLQR
+    controllers/idto
     auto_diff
     examples/common
     examples/cartpole
     examples/quadruped
-    optimizer
     ${PYTHON_INCLUDE_DIRS}
 )
 
@@ -84,11 +85,11 @@ endif()
 
 aux_source_directory(simulate SIM_SRC)
 aux_source_directory(controllers/iLQR ILQR_SRC)
+aux_source_directory(controllers/idto IDTO_SRC)
 aux_source_directory(auto_diff AUTO_DIFF_SRC)
 aux_source_directory(examples/common COMMON_SRC)
 aux_source_directory(examples/cartpole CARTPOLE_SRC)
 aux_source_directory(examples/quadruped QUADRUPED_SRC)
-aux_source_directory(optimizer OPTIMIZER_SRC)
 
 add_library(shared_lib INTERFACE)
 target_link_libraries(shared_lib INTERFACE
@@ -106,6 +107,7 @@ target_link_libraries(shared_lib INTERFACE
 
 add_executable(main main.cpp
                     ${ILQR_SRC}
+                    ${IDTO_SRC}
                     ${SIM_SRC}
                     ${AUTO_DIFF_SRC}
                     ${COMMON_SRC}
@@ -120,11 +122,7 @@ target_link_libraries(main
 
 # test
 add_executable(test_forward_dynamics test/testForwardDynamics.cpp
-  ${ILQR_SRC}
-  ${SIM_SRC}
   ${AUTO_DIFF_SRC}
-  ${COMMON_SRC}
-  ${CARTPOLE_SRC}
   ${QUADRUPED_SRC}
 )
 target_link_libraries(test_forward_dynamics
@@ -133,7 +131,7 @@ target_link_libraries(test_forward_dynamics
 
 add_executable(test_optimizer test/testOptimizer.cpp
   ${AUTO_DIFF_SRC}
-  ${OPTIMIZER_SRC}
+  ${IDTO_SRC}
 )
 target_link_libraries(test_optimizer
   shared_lib

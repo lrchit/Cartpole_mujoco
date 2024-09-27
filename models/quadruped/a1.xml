@@ -32,8 +32,8 @@
     <worldbody>
         <body name="trunk" pos="0 0 0.3">
             <inertial pos="0.0127283 0.00218554 0.000514891" quat="0.00186575 0.711506 0.000389649 0.702677" mass="4.713" diaginertia="0.0648213 0.0565803 0.0169323" />
-            <!-- <joint type="free" /> -->
-            <joint type="free" stiffness="10000" damping="1000000" frictionloss="0" armature="0" />
+            <joint type="free" />
+            <!-- <joint type="free" stiffness="10000" damping="1000000" frictionloss="0" armature="0" /> -->
             <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.913725 0.913725 0.847059 1" mesh="trunk" />
             <geom size="0.1335 0.066 0.057" type="box" rgba="0.913725 0.913725 0.847059 0" />
             <geom size="0.0005 0.0005 0.0005" type="box" contype="0" conaffinity="0" group="1" rgba="0.8 0 0 0" />
