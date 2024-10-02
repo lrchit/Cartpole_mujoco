@@ -42,10 +42,10 @@ Qv : [10, 10, 1,
 
 R : [100, 100, 100,
      100, 100, 100, 
-     0.001, 0.001, 0.001,
-     0.001, 0.001, 0.001,
-     0.001, 0.001, 0.001,
-     0.001, 0.001, 0.001]
+     0.005, 0.005, 0.005,
+     0.005, 0.005, 0.005,
+     0.005, 0.005, 0.005,
+     0.005, 0.005, 0.005]
 
 Qfq : [50, 50, 20, 
       10, 10, 10,
@@ -96,7 +96,7 @@ friction_coefficient : 1.0  # Coefficient of friction.
 stiction_velocity: 0.5      # Regularization velocity, in m/s.
 
 #gait heuristic
-gaitHeuristic: 3  # 0 for trotting, 1 for bounding, 2 for pacing, 3 for free
+gaitHeuristic: 2  # 0 for trotting, 1 for bounding, 2 for pacing.
 # Symmetric Control Cost
 symmetricControlCostCoefficient: 0.01
 

@@ -7,18 +7,30 @@
 #include <cartpole_dynamics.h>
 #include <mpc.h>
 #include <iLQR.h>
+#include <direct_multiple_shooting.h>
 
 class Cartpole_Example : public Example {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Cartpole_Example(std::string yaml_name) : Example(yaml_name) {
     YAML::Node config = YAML::LoadFile(yaml_name);
-    const ocs2::matrix_t Kguess = ocs2::matrix_t::Zero(1, 4);
 
     std::shared_ptr<Cartpole_Dynamics> cartpole_dynamics = std::make_shared<Cartpole_Dynamics>(config);
     std::shared_ptr<Cartpole_Cost> cartpole_cost = std::make_shared<Cartpole_Cost>(config);
-    std::unique_ptr<ControllerBase> iLQR = std::make_unique<iLQR_Solver>(config, cartpole_dynamics, cartpole_cost, Kguess);
-    mpc.reset(new MpcController(config, std::move(iLQR)));
+
+    const int use_which_solver = config["use_which_solver"].as<int>();
+    switch (use_which_solver) {
+      case 1:  // iLQR
+        solver.reset(new iLQR_Solver(config, cartpole_dynamics, cartpole_cost, ocs2::matrix_t::Zero(1, 4)));
+        mpc.reset(new MpcController(config, std::move(solver)));
+        break;
+      case 2:  // direct multiple shooting
+        solver.reset(new DirectMultipleShooting(config, cartpole_dynamics, cartpole_cost));
+        mpc.reset(new MpcController(config, std::move(solver)));
+        break;
+      default:
+        throw std::runtime_error("Choose from 1 for iLQR, 2 for dms");
+    }
   }
 
   ~Cartpole_Example() {}
@@ -53,4 +65,6 @@ class Cartpole_Example : public Example {
     while (angle < -std::numbers::pi)
       angle += 2 * std::numbers::pi;
   }
+
+  std::unique_ptr<ControllerBase> solver;
 };

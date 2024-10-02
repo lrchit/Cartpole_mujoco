@@ -28,6 +28,10 @@ initial_state:
   vel: 0
   omega: 0
 
+use_which_solver: 2   # 1 for iLQR, 2 for dms
+
+K: [0, 0, 0, 0]
+
 # mpc settings
 dt: 0.005
 horizon: 100

@@ -47,7 +47,7 @@ T TrajectoryOptimizer<T>::CalcCost(const std::vector<ocs2::vector_s_t<T>>& q,
     v_err = v[t] - prob_.v_nom[t];
     cost += T(q_err.transpose() * prob_.Qq * q_err);
     cost += T(v_err.transpose() * prob_.Qv * v_err);
-    cost += T(tau[t].transpose() * prob_.R * tau[t]);
+    cost += T(tau[t].transpose() * (prob_.R + prob_.dSymmetricControlCost_dtaudtau) * tau[t]);
 
     // std::cerr << "q_err: " << (q_err.transpose() * prob_.Qq * q_err).transpose() << std::endl;
     // std::cerr << "v_err: " << (v_err.transpose() * prob_.Qv * v_err).transpose() << std::endl;
@@ -149,7 +149,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(const Context<T>& cont
   // Compute the distance at which contact forces are zero: we don't need to do
   // any geometry queries beyond this distance
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
-  double threshold = -sigma * log(exp(eps / (sigma * k)) - 1.0);
+  double threshold = -sigma * log(exp(eps / (sigma * k)) - 1.0);  // 0.210176
 
   pinocchio::forwardKinematics(model_, data, context.q_, context.v_);
   pinocchio::updateFramePlacements(model_, data);

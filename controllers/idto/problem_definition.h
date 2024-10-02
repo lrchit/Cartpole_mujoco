@@ -38,6 +38,8 @@ struct ProblemDefinition {
     std::vector<double> Qf_q_vector = config["Qfq"].as<std::vector<double>>();
     std::vector<double> Qf_v_vector = config["Qfv"].as<std::vector<double>>();
     std::vector<double> R_vector = config["R"].as<std::vector<double>>();
+    int gaitHeuristic = config["gaitHeuristic"].as<int>();
+    double symmetricControlCostCoefficient = config["symmetricControlCostCoefficient"].as<double>();
     for (int i = 0; i < 18; ++i) {
       q_init[i] = q_init_vector[i];
       v_init[i] = v_init_vector[i];
@@ -46,6 +48,38 @@ struct ProblemDefinition {
       Qf_q.diagonal()[i] = Qf_q_vector[i];
       Qf_v.diagonal()[i] = Qf_v_vector[i];
       R.diagonal()[i] = R_vector[i];
+    }
+
+    // symmetric control cost
+    const ocs2::matrix_t I3 = ocs2::matrix_t::Identity(3, 3);
+    ocs2::matrix_t D;
+    ocs2::matrix_t pairedForceSelectMatrix = ocs2::matrix_t::Zero(2 * 3, 18);
+    switch (gaitHeuristic) {
+      case 0:
+        D = ocs2::matrix_t::Identity(3, 3);
+        D.block(1, 1, 2, 2) = -D.block(1, 1, 2, 2);
+        pairedForceSelectMatrix.block(0, 6 + 0, 3, 3) = I3;
+        pairedForceSelectMatrix.block(3, 6 + 3, 3, 3) = I3;
+        pairedForceSelectMatrix.block(0, 6 + 9, 3, 3) = D;
+        pairedForceSelectMatrix.block(3, 6 + 6, 3, 3) = D;
+        dSymmetricControlCost_dtaudtau = symmetricControlCostCoefficient * pairedForceSelectMatrix.transpose() * pairedForceSelectMatrix;
+      case 1:
+        D = ocs2::matrix_t::Identity(3, 3);
+        D.block(1, 1, 2, 2) = -D.block(1, 1, 2, 2);
+        pairedForceSelectMatrix.block(0, 6 + 0, 3, 3) = I3;
+        pairedForceSelectMatrix.block(0, 6 + 3, 3, 3) = D;
+        pairedForceSelectMatrix.block(3, 6 + 9, 3, 3) = I3;
+        pairedForceSelectMatrix.block(3, 6 + 6, 3, 3) = D;
+        dSymmetricControlCost_dtaudtau = symmetricControlCostCoefficient * pairedForceSelectMatrix.transpose() * pairedForceSelectMatrix;
+      case 2:
+        D = -ocs2::matrix_t::Identity(3, 3);
+        pairedForceSelectMatrix.block(0, 6 + 0, 3, 3) = I3;
+        pairedForceSelectMatrix.block(3, 6 + 3, 3, 3) = D;
+        pairedForceSelectMatrix.block(3, 6 + 9, 3, 3) = I3;
+        pairedForceSelectMatrix.block(0, 6 + 6, 3, 3) = D;
+        dSymmetricControlCost_dtaudtau = symmetricControlCostCoefficient * pairedForceSelectMatrix.transpose() * pairedForceSelectMatrix;
+      case 3:
+        dSymmetricControlCost_dtaudtau = ocs2::matrix_t::Zero(18, 18);
     }
 
     for (int k = 0; k < num_steps + 1; ++k) {
@@ -82,6 +116,7 @@ struct ProblemDefinition {
   // Control cost coefficients
   // N.B. these weights are per unit of time
   ocs2::matrix_t R;
+  ocs2::matrix_t dSymmetricControlCost_dtaudtau;
 
   // Target generalized positions at each time step
   std::vector<ocs2::vector_t> q_nom;

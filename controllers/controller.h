@@ -6,6 +6,21 @@
 
 #include <Types.h>
 
+struct Derivatives {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  // cost 2nd order approximation
+  std::vector<ocs2::vector_t> lx;
+  std::vector<ocs2::vector_t> lu;
+  std::vector<ocs2::matrix_t> lxx;
+  std::vector<ocs2::matrix_t> lux;
+  std::vector<ocs2::matrix_t> luu;
+
+  // dynamics 1st order approximation
+  std::vector<ocs2::matrix_t> fx;
+  std::vector<ocs2::matrix_t> fu;
+};
+
 class ControllerBase {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   public:

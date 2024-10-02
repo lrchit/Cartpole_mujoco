@@ -84,18 +84,18 @@ void TrajectoryOptimizer<T>::CalcGradient(const TrajectoryOptimizerState<T>& sta
     }
 
     // Contribution from control cost
-    gt += tau[t - 1].transpose() * 2 * prob_.R * dt * dtau_dqp[t - 1];
-    gt += tau[t].transpose() * 2 * prob_.R * dt * dtau_dqt[t];
+    gt += tau[t - 1].transpose() * 2 * (prob_.R + prob_.dSymmetricControlCost_dtaudtau) * dt * dtau_dqp[t - 1];
+    gt += tau[t].transpose() * 2 * (prob_.R + prob_.dSymmetricControlCost_dtaudtau) * dt * dtau_dqt[t];
     if (t != num_steps() - 1) {
       // There is no constrol input at the final timestep
-      gt += tau[t + 1].transpose() * 2 * prob_.R * dt * dtau_dqm[t + 1];
+      gt += tau[t + 1].transpose() * 2 * (prob_.R + prob_.dSymmetricControlCost_dtaudtau) * dt * dtau_dqm[t + 1];
     }
   }
 
   // Last step is different, because there is terminal cost and v[t+1] doesn't
   // exist
   auto gT = g->tail(nq);
-  gT = tau[num_steps() - 1].transpose() * 2 * prob_.R * dt * dtau_dqp[num_steps() - 1];
+  gT = tau[num_steps() - 1].transpose() * 2 * (prob_.R + prob_.dSymmetricControlCost_dtaudtau) * dt * dtau_dqp[num_steps() - 1];
   gT += (q[num_steps()] - prob_.q_nom[num_steps()]).transpose() * 2 * prob_.Qf_q;
   gT += (v[num_steps()] - prob_.v_nom[num_steps()]).transpose() * 2 * prob_.Qf_v * dvt_dqt[num_steps()];
 }
@@ -120,7 +120,7 @@ void TrajectoryOptimizer<T>::CalcHessian(const TrajectoryOptimizerState<T>& stat
   const double dt = time_step();
   const ocs2::matrix_s_t<T> Qq = 2 * prob_.Qq * dt;
   const ocs2::matrix_s_t<T> Qv = 2 * prob_.Qv * dt;
-  const ocs2::matrix_s_t<T> R = 2 * prob_.R * dt;
+  const ocs2::matrix_s_t<T> R = 2 * (prob_.R + prob_.dSymmetricControlCost_dtaudtau) * dt;
   const ocs2::matrix_s_t<T> Qf_q = 2 * prob_.Qf_q;
   const ocs2::matrix_s_t<T> Qf_v = 2 * prob_.Qf_v;
 

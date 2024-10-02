@@ -28,6 +28,8 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/build/bin)
 set(eigen_INCLUDE_DIRS /usr/local/include/eigen3)
 set(cppad_INCLUDE_DIRS /usr/local/include/cppad)
 set(pinocchio_INCLUDE_DIRS /usr/local/include/pinocchio)
+set(blasfeo_DIR /opt/blasfeo)
+set(hpipm_DIR /opt/hpipm)
 
 find_package(glfw3 REQUIRED)
 find_package(OpenMP REQUIRED)
@@ -51,10 +53,13 @@ include_directories(
     ${EIGEN3_INCLUDE_DIR}
     ${pinocchio_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
+    ${hpipm_DIR}/include
+    ${blasfeo_DIR}/include
     simulate
     controllers
     controllers/iLQR
     controllers/idto
+    controllers/direct_multiple_shooting
     auto_diff
     examples/common
     examples/cartpole
@@ -86,6 +91,7 @@ endif()
 aux_source_directory(simulate SIM_SRC)
 aux_source_directory(controllers/iLQR ILQR_SRC)
 aux_source_directory(controllers/idto IDTO_SRC)
+aux_source_directory(controllers/direct_multiple_shooting DMS_SRC)
 aux_source_directory(auto_diff AUTO_DIFF_SRC)
 aux_source_directory(examples/common COMMON_SRC)
 aux_source_directory(examples/cartpole CARTPOLE_SRC)
@@ -97,6 +103,8 @@ target_link_libraries(shared_lib INTERFACE
   ${CMAKE_SOURCE_DIR}/third_party/mujoco-3.1.0/lib/libmujoco.so.3.1.0
   lodepng
   pinocchio
+  ${hpipm_DIR}/lib/libhpipm.a
+  ${blasfeo_DIR}/lib/libblasfeo.a
   urdfdom_model
   yaml-cpp::yaml-cpp
   ${PYTHON_LIBRARIES}
@@ -108,6 +116,7 @@ target_link_libraries(shared_lib INTERFACE
 add_executable(main main.cpp
                     ${ILQR_SRC}
                     ${IDTO_SRC}
+                    ${DMS_SRC}
                     ${SIM_SRC}
                     ${AUTO_DIFF_SRC}
                     ${COMMON_SRC}
@@ -120,22 +129,22 @@ target_link_libraries(main
 )
 
 
-# test
-add_executable(test_forward_dynamics test/testForwardDynamics.cpp
-  ${AUTO_DIFF_SRC}
-  ${QUADRUPED_SRC}
-)
-target_link_libraries(test_forward_dynamics
-  shared_lib
-)
+# # test
+# add_executable(test_forward_dynamics test/testForwardDynamics.cpp
+#   ${AUTO_DIFF_SRC}
+#   ${QUADRUPED_SRC}
+# )
+# target_link_libraries(test_forward_dynamics
+#   shared_lib
+# )
 
-add_executable(test_optimizer test/testOptimizer.cpp
-  ${AUTO_DIFF_SRC}
-  ${IDTO_SRC}
-)
-target_link_libraries(test_optimizer
-  shared_lib
-)
+# add_executable(test_optimizer test/testOptimizer.cpp
+#   ${AUTO_DIFF_SRC}
+#   ${IDTO_SRC}
+# )
+# target_link_libraries(test_optimizer
+#   shared_lib
+# )
 
 
 

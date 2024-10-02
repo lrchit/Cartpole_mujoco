@@ -42,6 +42,10 @@ class Quadruped_Example : public Example {
         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint", "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"};
     const pinocchio::ModelTpl<ocs2::scalar_t> model = createPinocchioModel(urdfFile, jointNames);
     pinocchio::DataTpl<ocs2::scalar_t> data(model);
+    // const std::vector<pinocchio::FrameIndex> footId{model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"),
+    //     model.getFrameId("RR_foot"), model.getFrameId("FL_hip"), model.getFrameId("FR_hip"), model.getFrameId("RL_hip"), model.getFrameId("RR_hip"),
+    //     model.getFrameId("FL_thigh"), model.getFrameId("FR_thigh"), model.getFrameId("RL_thigh"), model.getFrameId("RR_thigh"), model.getFrameId("FL_calf"),
+    //     model.getFrameId("FR_calf"), model.getFrameId("RL_calf"), model.getFrameId("RR_calf")};
     const std::vector<pinocchio::FrameIndex> footId{
         model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"), model.getFrameId("RR_foot")};
     std::unique_ptr<idto::optimizer::idto> inverseDynamicsController = std::make_unique<idto::optimizer::idto>(config, model, data, footId);
@@ -57,6 +61,10 @@ class Quadruped_Example : public Example {
 
     // Initial state
     std::vector<double> q_init = config["initial_state"].as<std::vector<double>>();
+    // d->qpos[3] = 0;
+    // d->qpos[4] = 1;
+    // d->qpos[5] = 0;
+    // d->qpos[6] = 0;
     for (int i = 0; i < nq - 7; ++i) {
       d->qpos[i + 7] = q_init[i];
     }
@@ -67,10 +75,10 @@ class Quadruped_Example : public Example {
     xcur.head(nq) = stateEstimator->getGeneralizedCoordinates();
     xcur.tail(nv) = stateEstimator->getGeneralizedVelocities();
 
-    if (timer.getCurrentTime() > 5) {
+    if (timer.getCurrentTime() > 4) {
       xtarget[4] = 0.8;
     }
-    if (timer.getCurrentTime() > 8) {
+    if (timer.getCurrentTime() > 7) {
       xtarget[0] = xcur[0] + 0.3;
       xtarget[4] = 0.0;
     }
