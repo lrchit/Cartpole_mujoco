@@ -44,6 +44,8 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const pinocchio::ModelTpl<T>& model,
     assert(prob.q_nom[t].size() == model_.nq);
     assert(prob.v_nom[t].size() == model_.nv);
   }
+
+  footSlipAndClearanceCostFlowMap_.reset(new FootSlipAndClearanceCost(model_, footId_, params_));
 }
 
 template <typename T>
@@ -58,11 +60,14 @@ void TrajectoryOptimizer<T>::CalcGradient(const TrajectoryOptimizerState<T>& sta
 
   const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
   const InverseDynamicsPartials<T>& id_partials = EvalInverseDynamicsPartials(state);
+  const FootSlipAndClearanceCostPartials<T>& footSlipAndClearanceCost_partials = EvalFootSlipAndClearanceCostPartials(state);
   const std::vector<ocs2::matrix_s_t<T>>& dvt_dqt = v_partials.dvt_dqt;
   const std::vector<ocs2::matrix_s_t<T>>& dvt_dqm = v_partials.dvt_dqm;
   const std::vector<ocs2::matrix_s_t<T>>& dtau_dqp = id_partials.dtau_dqp;
   const std::vector<ocs2::matrix_s_t<T>>& dtau_dqt = id_partials.dtau_dqt;
   const std::vector<ocs2::matrix_s_t<T>>& dtau_dqm = id_partials.dtau_dqm;
+  const std::vector<ocs2::vector_s_t<T>>& dJ_dq = footSlipAndClearanceCost_partials.dJ_dq;
+  const std::vector<ocs2::vector_s_t<T>>& dJ_dv = footSlipAndClearanceCost_partials.dJ_dv;
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
   // are constant.
@@ -73,15 +78,18 @@ void TrajectoryOptimizer<T>::CalcGradient(const TrajectoryOptimizerState<T>& sta
 
     // Contribution from position cost
     gt = (q[t] - prob_.q_nom[t]).transpose() * 2 * prob_.Qq * dt;
+    gt += dJ_dq[t];
 
     // Contribution from velocity cost
     gt += (v[t] - prob_.v_nom[t]).transpose() * 2 * prob_.Qv * dt * dvt_dqt[t];
+    gt += dJ_dv[t].transpose() * dvt_dqt[t];
     if (t == num_steps() - 1) {
       // The terminal cost needs to be handled differently
       gt += (v[t + 1] - prob_.v_nom[t + 1]).transpose() * 2 * prob_.Qf_v * dvt_dqm[t + 1];
     } else {
       gt += (v[t + 1] - prob_.v_nom[t + 1]).transpose() * 2 * prob_.Qv * dt * dvt_dqm[t + 1];
     }
+    gt += dJ_dv[t + 1].transpose() * dvt_dqm[t + 1];
 
     // Contribution from control cost
     gt += tau[t - 1].transpose() * 2 * (prob_.R + prob_.dSymmetricControlCost_dtaudtau) * dt * dtau_dqp[t - 1];
@@ -98,6 +106,7 @@ void TrajectoryOptimizer<T>::CalcGradient(const TrajectoryOptimizerState<T>& sta
   gT = tau[num_steps() - 1].transpose() * 2 * (prob_.R + prob_.dSymmetricControlCost_dtaudtau) * dt * dtau_dqp[num_steps() - 1];
   gT += (q[num_steps()] - prob_.q_nom[num_steps()]).transpose() * 2 * prob_.Qf_q;
   gT += (v[num_steps()] - prob_.v_nom[num_steps()]).transpose() * 2 * prob_.Qf_v * dvt_dqt[num_steps()];
+  gT += dJ_dq[num_steps()] + dJ_dv[num_steps()].transpose() * dvt_dqt[num_steps()];
 }
 
 template <typename T>
@@ -126,11 +135,17 @@ void TrajectoryOptimizer<T>::CalcHessian(const TrajectoryOptimizerState<T>& stat
 
   const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
   const InverseDynamicsPartials<T>& id_partials = EvalInverseDynamicsPartials(state);
+  const FootSlipAndClearanceCostPartials<T>& footSlipAndClearanceCost_partials = EvalFootSlipAndClearanceCostPartials(state);
   const std::vector<ocs2::matrix_s_t<T>>& dvt_dqt = v_partials.dvt_dqt;
   const std::vector<ocs2::matrix_s_t<T>>& dvt_dqm = v_partials.dvt_dqm;
   const std::vector<ocs2::matrix_s_t<T>>& dtau_dqp = id_partials.dtau_dqp;
   const std::vector<ocs2::matrix_s_t<T>>& dtau_dqt = id_partials.dtau_dqt;
   const std::vector<ocs2::matrix_s_t<T>>& dtau_dqm = id_partials.dtau_dqm;
+  const std::vector<ocs2::vector_s_t<T>>& dJ_dq = footSlipAndClearanceCost_partials.dJ_dq;
+  const std::vector<ocs2::vector_s_t<T>>& dJ_dv = footSlipAndClearanceCost_partials.dJ_dv;
+  const std::vector<ocs2::matrix_s_t<T>>& dJ_dqdq = footSlipAndClearanceCost_partials.dJ_dqdq;
+  const std::vector<ocs2::matrix_s_t<T>>& dJ_dqdv = footSlipAndClearanceCost_partials.dJ_dqdv;
+  const std::vector<ocs2::matrix_s_t<T>>& dJ_dvdv = footSlipAndClearanceCost_partials.dJ_dvdv;
 
   // Get mutable references to the non-zero bands of the Hessian
   std::vector<ocs2::matrix_s_t<T>>& A = H->mutable_A();  // 2 rows below diagonal
@@ -143,7 +158,10 @@ void TrajectoryOptimizer<T>::CalcHessian(const TrajectoryOptimizerState<T>& stat
     // dg_t/dq_t
     ocs2::matrix_s_t<T>& dgt_dqt = C[t];
     dgt_dqt = Qq;
+    dgt_dqt += dJ_dqdq[t];
     dgt_dqt += dvt_dqt[t].transpose() * Qv * dvt_dqt[t];
+    dgt_dqt += dvt_dqt[t].transpose() * dJ_dvdv[t] * dvt_dqt[t];
+    dgt_dqt += 2 * dJ_dqdv[t] * dvt_dqt[t];
     dgt_dqt += dtau_dqp[t - 1].transpose() * R * dtau_dqp[t - 1];
     dgt_dqt += dtau_dqt[t].transpose() * R * dtau_dqt[t];
     if (t < num_steps() - 1) {
@@ -152,6 +170,7 @@ void TrajectoryOptimizer<T>::CalcHessian(const TrajectoryOptimizerState<T>& stat
     } else {
       dgt_dqt += dvt_dqm[t + 1].transpose() * Qf_v * dvt_dqm[t + 1];
     }
+    dgt_dqt += dvt_dqm[t + 1].transpose() * dJ_dvdv[t + 1] * dvt_dqm[t + 1];
 
     // dg_t/dq_{t+1}
     ocs2::matrix_s_t<T>& dgt_dqp = B[t + 1];
@@ -162,6 +181,8 @@ void TrajectoryOptimizer<T>::CalcHessian(const TrajectoryOptimizerState<T>& stat
     } else {
       dgt_dqp += dvt_dqt[t + 1].transpose() * Qf_v * dvt_dqm[t + 1];
     }
+    dgt_dqp += dJ_dqdv[t + 1].transpose() * dvt_dqm[t + 1];
+    dgt_dqp += dvt_dqt[t + 1].transpose() * dJ_dvdv[t + 1] * dvt_dqm[t + 1];
 
     // dg_t/dq_{t+2}
     if (t < num_steps() - 1) {
@@ -173,7 +194,10 @@ void TrajectoryOptimizer<T>::CalcHessian(const TrajectoryOptimizerState<T>& stat
   // dg_t/dq_t for the final timestep
   ocs2::matrix_s_t<T>& dgT_dqT = C[num_steps()];
   dgT_dqT = Qf_q;
+  dgT_dqT += dJ_dqdq[num_steps()];
   dgT_dqT += dvt_dqt[num_steps()].transpose() * Qf_v * dvt_dqt[num_steps()];
+  dgT_dqT += dvt_dqt[num_steps()].transpose() * dJ_dvdv[num_steps()] * dvt_dqt[num_steps()];
+  dgT_dqT += 2 * dJ_dqdv[num_steps()] * dvt_dqt[num_steps()];
   dgT_dqT += dtau_dqp[num_steps() - 1].transpose() * R * dtau_dqp[num_steps() - 1];
 
   // Copy lower triangular part to upper triangular part
@@ -463,6 +487,16 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsCache(const TrajectoryOptimizerS
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcFootSlipAndClearanceCostCache(const TrajectoryOptimizerState<T>& state,
+    typename TrajectoryOptimizerCache<T>::FootSlipAndClearanceCostCache* cache) const {
+  // Compute foot slip and clearance cost
+  CalcFootSlipAndClearanceCost(state, &cache->cost);
+
+  // Set cache invalidation flag
+  cache->up_to_date = true;
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcContextCache(const TrajectoryOptimizerState<T>& state, typename TrajectoryOptimizerCache<T>::ContextCache* cache) const {
   const std::vector<ocs2::vector_s_t<T>>& q = state.q();
   const std::vector<ocs2::vector_s_t<T>>& v = EvalV(state);
@@ -510,18 +544,29 @@ const std::vector<ocs2::vector_s_t<T>>& TrajectoryOptimizer<T>::EvalTau(const Tr
 }
 
 template <typename T>
+const T& TrajectoryOptimizer<T>::EvalFootSlipAndClearanceCost(const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().foot_slip_and_clearance_cost_cache.up_to_date)
+    CalcFootSlipAndClearanceCostCache(state, &state.mutable_cache().foot_slip_and_clearance_cost_cache);
+  return state.cache().foot_slip_and_clearance_cost_cache.cost;
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcCacheDerivativesData(const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
 
   // Some aliases
   InverseDynamicsPartials<T>& id_partials = cache.derivatives_data.id_partials;
   VelocityPartials<T>& v_partials = cache.derivatives_data.v_partials;
+  FootSlipAndClearanceCostPartials<T>& footSlipAndClearance_partials = cache.derivatives_data.footSlipAndClearanceCost_Partials;
 
   // Compute partial derivatives of inverse dynamics d(tau)/d(q)
   CalcInverseDynamicsPartials(state, &id_partials);
 
   // Compute partial derivatives of velocities d(v)/d(q)
   CalcVelocityPartials(state, &v_partials);
+
+  // Compute partial derivatives of foot slip and clearance cost d(J)/d(q), d^2(J))/d(q)^2
+  CalcFootSlipAndClearanceCostPartials(state, &footSlipAndClearance_partials);
 
   // Set cache invalidation flag
   cache.derivatives_data.up_to_date = true;
@@ -539,6 +584,13 @@ const InverseDynamicsPartials<T>& TrajectoryOptimizer<T>::EvalInverseDynamicsPar
   if (!state.cache().derivatives_data.up_to_date)
     CalcCacheDerivativesData(state);
   return state.cache().derivatives_data.id_partials;
+}
+
+template <typename T>
+const FootSlipAndClearanceCostPartials<T>& TrajectoryOptimizer<T>::EvalFootSlipAndClearanceCostPartials(const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().derivatives_data.up_to_date)
+    CalcCacheDerivativesData(state);
+  return state.cache().derivatives_data.footSlipAndClearanceCost_Partials;
 }
 
 template <typename T>

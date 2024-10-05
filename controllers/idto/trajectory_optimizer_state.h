@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "foot_slip_and_clearance_cost.h"
 #include "inverse_dynamics_partials.h"
 #include "penta_diagonal_matrix.h"
 #include "trajectory_optimizer_workspace.h"
@@ -72,6 +73,7 @@ struct TrajectoryOptimizerCache {
     trajectory_data.v.assign(num_steps + 1, ocs2::vector_s_t<T>::Zero(nv));
     trajectory_data.a.assign(num_steps, ocs2::vector_s_t<T>::Zero(nv));
     inverse_dynamics_cache.tau.assign(num_steps, ocs2::vector_s_t<T>::Zero(nv));
+    foot_slip_and_clearance_cost_cache.cost = 0;
     N_plus.assign(num_steps + 1, ocs2::matrix_s_t<T>::Zero(nv, nq));
     scale_factors.setConstant(1.0);
     constraint_jacobian.setZero();
@@ -127,19 +129,30 @@ struct TrajectoryOptimizerCache {
     bool up_to_date{false};
   } inverse_dynamics_cache;
 
+  struct FootSlipAndClearanceCostCache {
+    // Generalized forces at each timestep
+    // [tau(0), tau(1), ..., tau(num_steps-1)]
+    T cost;
+
+    bool up_to_date{false};
+  } foot_slip_and_clearance_cost_cache;
+
   // The mapping from qdot to v, v = N+(q)*qdot, at each time step
   std::vector<ocs2::matrix_s_t<T>> N_plus;
   bool n_plus_up_to_date{false};
 
   // Data used to construct the gradient ∇L and Hessian ∇²L approximation
   struct DerivativesData {
-    DerivativesData(const int num_steps, const int nv, const int nq) : v_partials(num_steps, nv, nq), id_partials(num_steps, nv, nq) {}
+    DerivativesData(const int num_steps, const int nv, const int nq)
+        : v_partials(num_steps, nv, nq), id_partials(num_steps, nv, nq), footSlipAndClearanceCost_Partials(num_steps, nv, nq) {}
 
     // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
     VelocityPartials<T> v_partials;
 
     // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
     InverseDynamicsPartials<T> id_partials;
+
+    FootSlipAndClearanceCostPartials<T> footSlipAndClearanceCost_Partials;
 
     bool up_to_date{false};
   } derivatives_data;
@@ -321,6 +334,7 @@ class TrajectoryOptimizerState {
   void invalidate_cache() {
     cache_.trajectory_data.up_to_date = false;
     cache_.inverse_dynamics_cache.up_to_date = false;
+    cache_.foot_slip_and_clearance_cost_cache.up_to_date = false;
     cache_.derivatives_data.up_to_date = false;
     cache_.cost_up_to_date = false;
     cache_.gradient_up_to_date = false;

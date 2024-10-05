@@ -68,11 +68,11 @@ class MpcController {
 
         // sleep if mpc is too fast
         const double duration_time = timer.getCurrentTime() - start_time;
-        // std::cerr << "mpc solve time = " << duration_time << std::endl;
         if (duration_time < 1 / mpcfrequency_) {
           const std::chrono::duration<double> interval(1.0 / mpcfrequency_ - duration_time);
           std::this_thread::sleep_for(interval);
         }  // compute for next solution immediately if it's too slow
+        // std::cerr << "mpc solve time = " << duration_time << std::endl;
       }
     }
   }

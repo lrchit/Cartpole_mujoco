@@ -13,10 +13,10 @@ initial_state : [-0.1, 1.1, -2.6,
 # solver initial state
 q_init : [ 0.0, 0.0, 0.3,        # base position
            0.0, 0.0, 0.0,        # base orientation
-           0.1, 0.72, -1.44,
-          -0.1, 0.72, -1.44,
-           0.1, 0.72, -1.44,
-          -0.1, 0.72, -1.44]
+          -0.0, 0.72, -1.44,
+           0.0, 0.72, -1.44,
+          -0.0, 0.72, -1.44,
+           0.0, 0.72, -1.44]
 
 v_init : [0, 0, 0,
           0, 0, 0, 
@@ -27,34 +27,34 @@ v_init : [0, 0, 0,
 
 # Cost Weights
 Qq : [50, 50, 20, 
-      10, 10, 10,
-      1, 1, 1,
-      1, 1, 1,
-      1, 1, 1,
-      1, 1, 1]
+      20, 20, 20,
+      5, 1, 1,
+      5, 1, 1,
+      5, 1, 1,
+      5, 1, 1]
 
-Qv : [10, 10, 1,
+Qv : [1, 1, 1,
       1, 1, 1, 
-      0.05, 0.05, 0.05,
-      0.05, 0.05, 0.05,
-      0.05, 0.05, 0.05,
-      0.05, 0.05, 0.05]
+      0.1, 0.05, 0.025,
+      0.1, 0.05, 0.025,
+      0.1, 0.05, 0.025,
+      0.1, 0.05, 0.025]
 
-R : [100, 100, 100,
-     100, 100, 100, 
-     0.001, 0.001, 0.001,
-     0.001, 0.001, 0.001,
-     0.001, 0.001, 0.001,
-     0.001, 0.001, 0.001]
+R : [10000, 10000, 10000,
+     10000, 10000, 10000, 
+     0.001, 0.0005, 0.001,
+     0.001, 0.0005, 0.001,
+     0.001, 0.0005, 0.001,
+     0.001, 0.0005, 0.001]
 
 Qfq : [50, 50, 20, 
-      10, 10, 10,
-      1, 1, 1,
-      1, 1, 1,
-      1, 1, 1,
-      1, 1, 1]
+      20, 20, 20,
+      5, 1, 1,
+      5, 1, 1,
+      5, 1, 1,
+      5, 1, 1]
 
-Qfv : [10, 10, 1,
+Qfv : [1, 1, 1,
       1, 1, 1, 
       0.1, 0.1, 0.1,
       0.1, 0.1, 0.1,
@@ -108,19 +108,37 @@ zOffset : -0.02
 
 which_contact_model : 1  # 0 = soft; 1 = spring-damper(0 behaves better at moving, 1 is better at angular actions).
 
+# foot slip and clearance cost
+recompileFootSlipAndClearanceCost: false
+cf: 1.0e+3
+c1: -30
+
+demo_vel_x: 0.3
+
 # mpc settings
 dt: 0.02
 horizon: 50
-mpcFrequency: 100
+mpcFrequency: 60
 mrtFrequency: 500
 useFeedbackPolicy: true
 
 mpc_iters : 1
-Kp : [50, 50, 50,
-      50, 50, 50,
-      50, 50, 50,
-      50, 50, 50]
+Kp : [20, 20, 20,
+      20, 20, 20,
+      20, 20, 20,
+      20, 20, 20]
 Kd : [2, 2, 2,
       2, 2, 2,
       2, 2, 2,
       2, 2, 2]
+
+# estimate
+use_cheater_mode              :  true
+footRadius                    :  0.02
+estimatorFrequency            :  500
+foot_height_sensor_noise      :  0.001
+foot_process_noise_position   :  0.002
+foot_sensor_noise_position    :  0.001
+foot_sensor_noise_velocity    :  0.1
+imu_process_noise_position    :  0.02
+imu_process_noise_velocity    :  0.02

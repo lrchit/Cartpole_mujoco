@@ -27,6 +27,8 @@ class Quadruped_Example : public Example {
     YAML::Node config = YAML::LoadFile(yaml_name);
     nq = config["nq"].as<int>();
     nv = config["nv"].as<int>();
+    horizontal_time = (Nt - 1) * config["dt"].as<double>();
+    demo_vel_x = config["demo_vel_x"].as<double>();
 
     std::vector<double> q_init = config["q_init"].as<std::vector<double>>();
     std::vector<double> v_init = config["v_init"].as<std::vector<double>>();
@@ -42,15 +44,14 @@ class Quadruped_Example : public Example {
         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint", "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"};
     const pinocchio::ModelTpl<ocs2::scalar_t> model = createPinocchioModel(urdfFile, jointNames);
     pinocchio::DataTpl<ocs2::scalar_t> data(model);
-    // const std::vector<pinocchio::FrameIndex> footId{model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"),
-    //     model.getFrameId("RR_foot"), model.getFrameId("FL_hip"), model.getFrameId("FR_hip"), model.getFrameId("RL_hip"), model.getFrameId("RR_hip"),
-    //     model.getFrameId("FL_thigh"), model.getFrameId("FR_thigh"), model.getFrameId("RL_thigh"), model.getFrameId("RR_thigh"), model.getFrameId("FL_calf"),
-    //     model.getFrameId("FR_calf"), model.getFrameId("RL_calf"), model.getFrameId("RR_calf")};
-    const std::vector<pinocchio::FrameIndex> footId{
-        model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"), model.getFrameId("RR_foot")};
+    const std::vector<pinocchio::FrameIndex> footId{model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"),
+        model.getFrameId("RR_foot"), model.getFrameId("FL_hip"), model.getFrameId("FR_hip"), model.getFrameId("RL_hip"), model.getFrameId("RR_hip"),
+        model.getFrameId("FL_thigh"), model.getFrameId("FR_thigh"), model.getFrameId("RL_thigh"), model.getFrameId("RR_thigh")};
+    // const std::vector<pinocchio::FrameIndex> footId{
+    //     model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"), model.getFrameId("RR_foot")};
     std::unique_ptr<idto::optimizer::idto> inverseDynamicsController = std::make_unique<idto::optimizer::idto>(config, model, data, footId);
 
-    stateEstimator.reset(new StateEstimator(config));
+    stateEstimator.reset(new StateEstimator(config, model, footId));
     mpc.reset(new MpcController(config, std::move(inverseDynamicsController)));
   }
 
@@ -68,21 +69,24 @@ class Quadruped_Example : public Example {
     for (int i = 0; i < nq - 7; ++i) {
       d->qpos[i + 7] = q_init[i];
     }
+
+    // initialize sensor data for estimator
+    stateEstimator->setSensorData(d->sensordata);
   }
 
   virtual void computeInput(mjData* d) override {
-    stateEstimator->callStateEstimator(d->sensordata);
     xcur.head(nq) = stateEstimator->getGeneralizedCoordinates();
     xcur.tail(nv) = stateEstimator->getGeneralizedVelocities();
 
+    // if (timer.getCurrentTime() > 4) {
+    //   xtarget[4] = 0.8;
+    // }
     if (timer.getCurrentTime() > 4) {
-      xtarget[4] = 0.8;
-    }
-    if (timer.getCurrentTime() > 7) {
-      xtarget[0] = xcur[0] + 0.3;
+      xtarget[0] = xcur[0] + demo_vel_x * horizontal_time;
+      xtarget[nq + 0] = demo_vel_x;
       xtarget[4] = 0.0;
     }
-    std::vector<ocs2::vector_t> x_ref = MakeLinearInterpolation(xcur, xtarget);
+    std::vector<ocs2::vector_t> x_ref = makeLinearInterpolation(xcur, xtarget);
     // std::vector<ocs2::vector_t> x_ref(Nt, xtarget);
     mpc->resetProblem(xcur, x_ref);
 
@@ -93,18 +97,25 @@ class Quadruped_Example : public Example {
   }
 
   private:
-  std::vector<ocs2::vector_t> MakeLinearInterpolation(const ocs2::vector_t& start, const ocs2::vector_t& end) {
+  std::vector<ocs2::vector_t> makeLinearInterpolation(const ocs2::vector_t& start, const ocs2::vector_t& end) {
     std::vector<ocs2::vector_t> result;
     double lambda = 0;
+    // for (int i = 0; i < Nt; ++i) {
+    //   lambda = i / (Nt - 1.0);
+    //   result.push_back((1 - lambda) * start + lambda * end);
+    // }
     for (int i = 0; i < Nt; ++i) {
       lambda = i / (Nt - 1.0);
-      result.push_back((1 - lambda) * start + lambda * end);
+      result.push_back((ocs2::vector_t(nq + nv) << (1 - lambda) * start.head(nq) + lambda * end.head(nq), end.tail(nv)).finished());
     }
+    result[0].tail(nv) = start.tail(nv);
     return result;
   }
 
   int nq;
   int nv;
+  double horizontal_time;
+  double demo_vel_x;
 
   Timer timer;
   std::unique_ptr<StateEstimator> stateEstimator;

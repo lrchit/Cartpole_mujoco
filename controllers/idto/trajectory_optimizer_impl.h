@@ -27,7 +27,8 @@ template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(const TrajectoryOptimizerState<T>& state) const {
   const std::vector<ocs2::vector_s_t<T>>& v = EvalV(state);
   const std::vector<ocs2::vector_s_t<T>>& tau = EvalTau(state);
-  T cost = CalcCost(state.q(), v, tau, &state.workspace);
+  const T footSlipAndClearanceCost = EvalFootSlipAndClearanceCost(state);
+  T cost = CalcCost(state.q(), v, tau, &state.workspace) + footSlipAndClearanceCost;
 
   return cost;
 }
@@ -68,6 +69,17 @@ T TrajectoryOptimizer<T>::CalcCost(const std::vector<ocs2::vector_s_t<T>>& q,
   //   std::cerr << "total cost: " << cost << std::endl;
 
   return cost;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcFootSlipAndClearanceCost(const TrajectoryOptimizerState<T>& state, T* cost) const {
+  const std::vector<ocs2::vector_s_t<T>>& q = state.q();
+  const std::vector<ocs2::vector_s_t<T>>& v = EvalV(state);
+
+  *cost = 0;
+  for (int t = 0; t < num_steps() + 1; ++t) {
+    *cost += footSlipAndClearanceCostFlowMap_->getValue(q[t], v[t]);
+  }
 }
 
 template <typename T>
@@ -160,9 +172,6 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(const Context<T>& cont
     const ocs2::vector3_s_t<T> nhat = ocs2::vector3_s_t<T>(T(0), T(0), T(1.0));
 
     const pinocchio::ReferenceFrame rf = pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED;
-    const ocs2::vector_s_t<T> q = context.q_;
-    const ocs2::vector_s_t<T> v = context.v_;
-
     const ocs2::vector3_s_t<T> pos = data.oMf[frameIndex].translation();
     const ocs2::vector3_s_t<T> vel = pinocchio::getFrameVelocity(model_, data, frameIndex, rf).linear();
     const T distance = nhat.dot(pos);
@@ -275,6 +284,20 @@ const ocs2::vector3_s_t<T> TrajectoryOptimizer<T>::computeContactForceThroughSpr
 
   // Total contact force on B at C, expressed in W.
   return nhat * f_springer + f_damper;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcFootSlipAndClearanceCostPartials(const TrajectoryOptimizerState<T>& state,
+    FootSlipAndClearanceCostPartials<T>* footSlipAndClearance_partials) const {
+  const std::vector<ocs2::vector_s_t<T>>& q = state.q();
+  const std::vector<ocs2::vector_s_t<T>>& v = EvalV(state);
+
+  for (int t = 0; t < num_steps() + 1; ++t) {
+    std::pair(footSlipAndClearance_partials->dJ_dq[t], footSlipAndClearance_partials->dJ_dv[t]) =
+        footSlipAndClearanceCostFlowMap_->getFirstDerivatives(q[t], v[t]);
+    std::tuple(footSlipAndClearance_partials->dJ_dqdq[t], footSlipAndClearance_partials->dJ_dqdv[t], footSlipAndClearance_partials->dJ_dvdv[t]) =
+        footSlipAndClearanceCostFlowMap_->getSecondDerivatives(q[t], v[t]);
+  }
 }
 
 template <typename T>

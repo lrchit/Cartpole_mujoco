@@ -85,6 +85,9 @@ struct SolverParameters {
     friction_coefficient = config["friction_coefficient"].as<double>();
     stiction_velocity = config["stiction_velocity"].as<double>();
     which_contact_model = config["which_contact_model"].as<double>();
+    recompileFootSlipAndClearanceCost = config["recompileFootSlipAndClearanceCost"].as<bool>();
+    cf = config["cf"].as<double>();
+    c1 = config["c1"].as<double>();
   }
 
   // Flag for whether we should check for convergence, along with default
@@ -142,6 +145,11 @@ struct SolverParameters {
 
   // which_contact_model
   int which_contact_model{0};
+
+  // foot slip and clearance cost
+  bool recompileFootSlipAndClearanceCost{true};
+  double cf{0};
+  double c1{0};
 
   // Flag for rescaling the Hessian, for better numerical conditioning
   bool scaling{true};

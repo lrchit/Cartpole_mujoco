@@ -223,6 +223,9 @@ class TrajectoryOptimizer {
    */
   const InverseDynamicsPartials<T>& EvalInverseDynamicsPartials(const TrajectoryOptimizerState<T>& state) const;
 
+  const T& EvalFootSlipAndClearanceCost(const TrajectoryOptimizerState<T>& state) const;
+  const FootSlipAndClearanceCostPartials<T>& EvalFootSlipAndClearanceCostPartials(const TrajectoryOptimizerState<T>& state) const;
+
   /**
    * Evaluate the total (unconstrained) cost of the optimization problem,
    *
@@ -475,6 +478,9 @@ class TrajectoryOptimizer {
 
   void CalcInverseDynamicsCache(const TrajectoryOptimizerState<T>& state, typename TrajectoryOptimizerCache<T>::InverseDynamicsCache* cache) const;
 
+  void CalcFootSlipAndClearanceCostCache(const TrajectoryOptimizerState<T>& state,
+      typename TrajectoryOptimizerCache<T>::FootSlipAndClearanceCostCache* cache) const;
+
   /**
    * Compute all of the "derivatives data" (dv/dq, dtau/dq) stored in the
    * state's cache to correspond to the state's generalized positions q.
@@ -583,6 +589,8 @@ class TrajectoryOptimizer {
    */
   void CalcInverseDynamics(const TrajectoryOptimizerState<T>& state, const std::vector<ocs2::vector_s_t<T>>& a, std::vector<ocs2::vector_s_t<T>>* tau) const;
 
+  void CalcFootSlipAndClearanceCost(const TrajectoryOptimizerState<T>& state, T* cost) const;
+
   /**
    * Helper function for computing the inverse dynamics
    *
@@ -660,6 +668,8 @@ class TrajectoryOptimizer {
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartials(const TrajectoryOptimizerState<T>& state, InverseDynamicsPartials<T>* id_partials) const;
+
+  void CalcFootSlipAndClearanceCostPartials(const TrajectoryOptimizerState<T>& state, FootSlipAndClearanceCostPartials<T>* footSlipAndClearance_partials) const;
 
   /**
    * Compute the linesearch parameter alpha given a linesearch direction
@@ -852,6 +862,9 @@ class TrajectoryOptimizer {
 
   // contact points
   std::vector<pinocchio::FrameIndex> footId_;
+
+  // foot slip and clearance cost symstem flow map
+  std::unique_ptr<FootSlipAndClearanceCost<double>> footSlipAndClearanceCostFlowMap_;
 };
 
 // Declare template specializations

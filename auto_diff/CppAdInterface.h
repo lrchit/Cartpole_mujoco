@@ -42,6 +42,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <auto_diff/CppAdSparsity.h>
 #include <auto_diff/Types.h>
 
+namespace Eigen {
+namespace numext {
+template <>
+EIGEN_STRONG_INLINE bool isfinite(const ocs2::ad_scalar_t& x) {
+  return true;
+}
+}  // namespace numext
+}  // namespace Eigen
+
 namespace ocs2 {
 
 class CppAdInterface {

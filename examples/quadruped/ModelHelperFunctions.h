@@ -8,14 +8,14 @@
 #include <pinocchio/multibody/model.hpp>
 #include <pinocchio/multibody/data.hpp>
 
-namespace Eigen {
-namespace numext {
-template <>
-EIGEN_STRONG_INLINE bool isfinite(const ocs2::ad_scalar_t& x) {
-  return true;
-}
-}  // namespace numext
-}  // namespace Eigen
+// namespace Eigen {
+// namespace numext {
+// template <>
+// EIGEN_STRONG_INLINE bool isfinite(const ocs2::ad_scalar_t& x) {
+//   return true;
+// }
+// }  // namespace numext
+// }  // namespace Eigen
 
 namespace ocs2 {
 namespace legged_robot {
