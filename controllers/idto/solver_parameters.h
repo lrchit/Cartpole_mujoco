@@ -84,6 +84,11 @@ struct SolverParameters {
     smoothing_factor = config["smoothing_factor"].as<double>();
     friction_coefficient = config["friction_coefficient"].as<double>();
     stiction_velocity = config["stiction_velocity"].as<double>();
+    k_spring = config["k_spring"].as<double>();
+    d_damper = config["d_damper"].as<double>();
+    damper_smooth = config["damper_smooth"].as<double>();
+    spring_smooth = config["spring_smooth"].as<double>();
+    zOffset = config["zOffset"].as<double>();
     which_contact_model = config["which_contact_model"].as<double>();
     recompileFootSlipAndClearanceCost = config["recompileFootSlipAndClearanceCost"].as<bool>();
     cf = config["cf"].as<double>();

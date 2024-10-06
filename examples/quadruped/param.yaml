@@ -100,9 +100,9 @@ gaitHeuristic: 3  # 0 for trotting, 1 for bounding, 2 for pacing, 3 for free
 # Symmetric Control Cost
 symmetricControlCostCoefficient: 0.01
 
-k_spring : 1000
-d_damper : 2000
-damper_smooth : 200
+k_spring : 100
+d_damper : 100
+damper_smooth : 100
 spring_smooth : 100
 zOffset : -0.02
 

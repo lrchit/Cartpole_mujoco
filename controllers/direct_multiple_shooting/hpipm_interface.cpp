@@ -161,20 +161,17 @@ void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2:
 
   struct d_ocp_qp qp;
   d_ocp_qp_create(&dim, &qp, qp_mem);
-  std::cerr << "666666666666666" << std::endl;
   d_ocp_qp_set_all(hA, hB, hb, hQ, hS, hR, hq, hr, hidxbx, hlbx, hubx, hidxbu, hlbu, hubu, hC, hD, hlg, hug, hZl, hZu, hzl, hzu, hidxs, hlls, hlus, &qp);
 
   // ocp qp sol
-  std::cerr << "777777777777777" << std::endl;
   hpipm_size_t qp_sol_size = d_ocp_qp_sol_memsize(&dim);
   void* qp_sol_mem = malloc(qp_sol_size);
 
-  std::cerr << "888888888888888" << std::endl;
   struct d_ocp_qp_sol qp_sol;
   d_ocp_qp_sol_create(&dim, &qp_sol, qp_sol_mem);
 
   hpipm_size_t ipm_arg_size = d_ocp_qp_ipm_arg_memsize(&dim);
-  printf("\nipm arg size = %d\n", ipm_arg_size);
+  printf("\nipm arg size = %zu\n", ipm_arg_size);
   void* ipm_arg_mem = malloc(ipm_arg_size);
 
   struct d_ocp_qp_ipm_arg arg;

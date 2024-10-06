@@ -27,10 +27,10 @@ ocs2::scalar_t Cartpole_Cost::getValue(const ocs2::vector_t& x, const ocs2::vect
 }
 
 std::pair<ocs2::vector_t, ocs2::vector_t> Cartpole_Cost::getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u, const ocs2::vector_t& xref) {
-  return std::pair(Q_ * (x - xref), R_ * u);
+  return std::pair((Q_ * (x - xref)).transpose(), (R_ * u).transpose());
 }
 std::pair<ocs2::vector_t, ocs2::vector_t> Cartpole_Cost::getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& xref) {
-  return std::pair(Qn_ * (x - xref), ocs2::vector_t{});
+  return std::pair((Qn_ * (x - xref)).transpose(), ocs2::vector_t::Zero(nu));
 }
 
 std::tuple<ocs2::matrix_t, ocs2::matrix_t, ocs2::matrix_t> Cartpole_Cost::getSecondDerivatives(const ocs2::vector_t& x,
@@ -39,5 +39,5 @@ std::tuple<ocs2::matrix_t, ocs2::matrix_t, ocs2::matrix_t> Cartpole_Cost::getSec
   return std::tuple(Q_, ocs2::matrix_t::Zero(nu, nx), R_);
 }
 std::tuple<ocs2::matrix_t, ocs2::matrix_t, ocs2::matrix_t> Cartpole_Cost::getSecondDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& xref) {
-  return std::tuple(Qn_, ocs2::matrix_t{}, ocs2::matrix_t{});
+  return std::tuple(Qn_, ocs2::matrix_t::Zero(nu, nx), ocs2::matrix_t::Zero(nu, nu));
 }

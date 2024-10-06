@@ -18,10 +18,14 @@ class DirectMultipleShooting : public ControllerBase {
   virtual ocs2::matrix_t getFeedBackMatrix() override { return K_; };
   virtual void launch_controller(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_ref) override;
 
+  void setupProblem();
+  ocs2::scalar_t calcCost();
+
   private:
   int nx_;
   int nu_;
   int horizon_;
+  int max_inter_ = 100;
   ocs2::matrix_t K_;
   Derivatives derivatives;
 
