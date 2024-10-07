@@ -4,6 +4,9 @@ Cartpole_Cost::Cartpole_Cost(YAML::Node config) {
   ocs2::scalar_t dt = config["dt"].as<double>();
 
   // Initialize weight matrix
+  Q_.setZero();
+  Qn_.setZero();
+  R_.setZero();
   Q_(0, 0) = config["Q"]["q1"].as<double>();
   Q_(1, 1) = config["Q"]["q2"].as<double>();
   Q_(2, 2) = config["Q"]["q3"].as<double>();

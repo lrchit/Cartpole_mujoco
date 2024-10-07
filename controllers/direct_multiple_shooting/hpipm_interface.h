@@ -16,8 +16,6 @@
 #include <yaml-cpp/yaml.h>
 #include <Types.h>
 
-static constexpr double INF = 1E5;
-
 struct HpipmBounds {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   std::vector<int> idx_u;
@@ -36,15 +34,28 @@ class HpipmInterface {
   ~HpipmInterface() = default;
 
   void solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2::vector_t>& utraj);
+  void solve(std::vector<ocs2::vector_t>& xtraj,
+      std::vector<ocs2::vector_t>& utraj,
+      std::vector<ocs2::matrix_t> A,
+      std::vector<ocs2::matrix_t> B,
+      std::vector<ocs2::vector_t> b,
+      std::vector<ocs2::matrix_t> Q,
+      std::vector<ocs2::matrix_t> S,
+      std::vector<ocs2::matrix_t> R,
+      std::vector<ocs2::vector_t> q,
+      std::vector<ocs2::vector_t> r);
 
-  void setInitialState(const ocs2::vector_t& xcur);
-  void setDynamics(const ocs2::matrix_t& A, const ocs2::matrix_t& B, const int index);
-  void setCosts(const ocs2::vector_t& df_dx,
-      const ocs2::vector_t& df_du,
-      const ocs2::matrix_t& df_dxx,
-      const ocs2::matrix_t& df_dux,
-      const ocs2::matrix_t& df_duu,
-      const int index);
+  void setDynamics(ocs2::vector_t& x0, ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index);
+  void setDynamics(ocs2::vector_t& x0, std::vector<ocs2::matrix_t>& A, std::vector<ocs2::matrix_t>& B, std::vector<ocs2::vector_t>& b);
+
+  void
+  setCosts(ocs2::vector_t& x0, ocs2::vector_t& df_dx, ocs2::vector_t& df_du, ocs2::matrix_t& df_dxx, ocs2::matrix_t& df_dux, ocs2::matrix_t& df_duu, int index);
+  void setCosts(ocs2::vector_t& x0,
+      std::vector<ocs2::vector_t>& q,
+      std::vector<ocs2::vector_t>& r,
+      std::vector<ocs2::matrix_t>& Q,
+      std::vector<ocs2::matrix_t>& S,
+      std::vector<ocs2::matrix_t>& R);
 
   // these are not support currently
   void setBounds();

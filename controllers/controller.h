@@ -19,6 +19,7 @@ struct Derivatives {
   // dynamics 1st order approximation
   std::vector<ocs2::matrix_t> fx;
   std::vector<ocs2::matrix_t> fu;
+  std::vector<ocs2::vector_t> b;
 };
 
 class ControllerBase {

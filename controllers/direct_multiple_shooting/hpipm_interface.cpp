@@ -1,7 +1,4 @@
-//
-// Created by Dennis Wirya (dwirya@student.unimelb.edu.au).
-// Copyright (c) 2021 MUR Driverless. All rights reserved.
-//
+
 #include "hpipm_interface.h"
 
 HpipmInterface::HpipmInterface(YAML::Node config) {
@@ -18,16 +15,14 @@ HpipmInterface::HpipmInterface(YAML::Node config) {
   nsbu = new int[horizon_];  // number of slack variables on input
   nsg = new int[horizon_];   // number of slack variables on polytopic constraints
 
-  hA = new double*[horizon_ - 1];
-  hB = new double*[horizon_ - 1];
-  hb = new double*[horizon_ - 1];
+  hA = new double*[horizon_];
+  hB = new double*[horizon_];
+  hb = new double*[horizon_];
   for (int k = 0; k < horizon_ - 1; ++k) {
-    hb[k] = new double[nx_];
-    std::fill(hb[k], hb[k] + nx_, 0.0);
-
     nx[k] = nx_;
     nu[k] = nu_;
   }
+  nx[0] = 0;
   nx[horizon_ - 1] = nx_;
   nu[horizon_ - 1] = 0;
 
@@ -65,45 +60,58 @@ HpipmInterface::HpipmInterface(YAML::Node config) {
   }
 }
 
-void HpipmInterface::setCosts(const ocs2::vector_t& df_dx,
-    const ocs2::vector_t& df_du,
-    const ocs2::matrix_t& df_dxx,
-    const ocs2::matrix_t& df_dux,
-    const ocs2::matrix_t& df_duu,
-    const int index) {
-  hQ[index] = const_cast<double*>(df_dxx.data());
-  hq[index] = const_cast<double*>(df_dx.data());
+void HpipmInterface::setCosts(ocs2::vector_t& x0, ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix_t& Q, ocs2::matrix_t& S, ocs2::matrix_t& R, int index) {
+  hQ[index] = Q.data();
+  hq[index] = q.data();
 
-  if (index == horizon_ - 1) {
-    hR[index] = nullptr;
-    hS[index] = nullptr;
-    hr[index] = nullptr;
-  } else {
-    hR[index] = const_cast<double*>(df_duu.data());
-    hS[index] = const_cast<double*>(df_dux.data());
-    hr[index] = const_cast<double*>(df_du.data());
+  if (index < horizon_) {
+    hR[index] = R.data();
+    hS[index] = S.data();
+
+    // r0 = r + S * x0
+    if (index == 0) {
+      ocs2::vector_t r0 = r + S * x0;
+      hr[index] = r0.data();
+    } else {
+      hr[index] = r.data();
+    }
   }
 }
 
-void HpipmInterface::setDynamics(const ocs2::matrix_t& A, const ocs2::matrix_t& B, const int index) {
-  hA[index] = const_cast<double*>(A.data());
-  hB[index] = const_cast<double*>(B.data());
+void HpipmInterface::setCosts(ocs2::vector_t& x0,
+    std::vector<ocs2::vector_t>& q,
+    std::vector<ocs2::vector_t>& r,
+    std::vector<ocs2::matrix_t>& Q,
+    std::vector<ocs2::matrix_t>& S,
+    std::vector<ocs2::matrix_t>& R) {
+  for (int k = 0; k < horizon_ - 1; ++k) {
+    setCosts(x0, q[k], r[k], Q[k], S[k], R[k], k);
+  }
+  setCosts(x0, q[horizon_ - 1], r[horizon_ - 1], Q[horizon_ - 1], S[horizon_ - 1], R[horizon_ - 1], horizon_ - 1);
 }
 
-void HpipmInterface::setInitialState(const ocs2::vector_t& xcur) {
-  nbx[0] = nx_;
-  hidxbx[0] = initialStateBoundIndex;
-  hlbx[0] = const_cast<double*>(xcur.data());
-  hubx[0] = const_cast<double*>(xcur.data());
+void HpipmInterface::setDynamics(ocs2::vector_t& x0, ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index) {
+  hA[index] = A.data();
+  hB[index] = B.data();
+
+  // b0 = b + A * x0
+  if (index == 0) {
+    ocs2::vector_t b0 = A * x0 + b;
+    hb[index] = b0.data();
+  } else {
+    hb[index] = b.data();
+  }
+}
+
+void HpipmInterface::setDynamics(ocs2::vector_t& x0, std::vector<ocs2::matrix_t>& A, std::vector<ocs2::matrix_t>& B, std::vector<ocs2::vector_t>& b) {
+  for (int k = 0; k < horizon_ - 1; ++k) {
+    setDynamics(x0, A[k], B[k], b[k], k);
+  }
 }
 
 // no bounds supported
 void HpipmInterface::setBounds() {
-  nbu[0] = 0;
-  hidxbu[0] = nullptr;
-  hlbu[0] = nullptr;
-  hubu[0] = nullptr;
-  for (int k = 1; k < horizon_; k++) {
+  for (int k = 0; k < horizon_; k++) {
     nbu[k] = 0;
     hidxbu[k] = nullptr;
     hlbu[k] = nullptr;
@@ -149,48 +157,36 @@ void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2:
   // ocp qp dim
   hpipm_size_t dim_size = d_ocp_qp_dim_memsize(horizon_ - 1);
   void* dim_mem = malloc(dim_size);
-
   struct d_ocp_qp_dim dim;
   d_ocp_qp_dim_create(horizon_ - 1, &dim, dim_mem);
-
   d_ocp_qp_dim_set_all(nx, nu, nbx, nbu, ng, nsbx, nsbu, nsg, &dim);
 
   // ocp qp
   hpipm_size_t qp_size = d_ocp_qp_memsize(&dim);
   void* qp_mem = malloc(qp_size);
-
   struct d_ocp_qp qp;
   d_ocp_qp_create(&dim, &qp, qp_mem);
   d_ocp_qp_set_all(hA, hB, hb, hQ, hS, hR, hq, hr, hidxbx, hlbx, hubx, hidxbu, hlbu, hubu, hC, hD, hlg, hug, hZl, hZu, hzl, hzu, hidxs, hlls, hlus, &qp);
 
-  // ocp qp sol
-  hpipm_size_t qp_sol_size = d_ocp_qp_sol_memsize(&dim);
-  void* qp_sol_mem = malloc(qp_sol_size);
-
-  struct d_ocp_qp_sol qp_sol;
-  d_ocp_qp_sol_create(&dim, &qp_sol, qp_sol_mem);
-
+  // ocp qp ipm arg
   hpipm_size_t ipm_arg_size = d_ocp_qp_ipm_arg_memsize(&dim);
   printf("\nipm arg size = %zu\n", ipm_arg_size);
   void* ipm_arg_mem = malloc(ipm_arg_size);
-
   struct d_ocp_qp_ipm_arg arg;
   d_ocp_qp_ipm_arg_create(&dim, &arg, ipm_arg_mem);
-
-  enum hpipm_mode mode = SPEED_ABS;  // BALANCE, ROBUST, SPEED_ABS
+  enum hpipm_mode mode = hpipm_mode::BALANCE;  // BALANCE, ROBUST, SPEED_ABS
   int iter_max = 30;
   double alpha_min = 1.0e-08;
   double mu0 = 1.0e+02;
-  double tol_stat = 1.0e-8;
-  double tol_eq = 1.0e-8;
-  double tol_ineq = 1.0e-8;
-  double tol_comp = 1.0e-8;
+  double tol_stat = 1.0e-4;
+  double tol_eq = 1.0e-4;
+  double tol_ineq = 1.0e-4;
+  double tol_comp = 1.0e-4;
   double reg_prim = 1.0e-12;
   int warm_start = 0;
   int pred_corr = 1;
   int ric_alg = 0;
   int split_step = 1;
-
   d_ocp_qp_ipm_arg_set_default(mode, &arg);
   d_ocp_qp_ipm_arg_set_iter_max(&iter_max, &arg);
   d_ocp_qp_ipm_arg_set_alpha_min(&alpha_min, &arg);
@@ -203,39 +199,60 @@ void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2:
   d_ocp_qp_ipm_arg_set_warm_start(&warm_start, &arg);
   d_ocp_qp_ipm_arg_set_pred_corr(&pred_corr, &arg);
   d_ocp_qp_ipm_arg_set_ric_alg(&ric_alg, &arg);
+  d_ocp_qp_ipm_arg_set_split_step(&split_step, &arg);
 
+  // ocp qp ipm ws
   hpipm_size_t ipm_size = d_ocp_qp_ipm_ws_memsize(&dim, &arg);
   void* ipm_mem = malloc(ipm_size);
-
   struct d_ocp_qp_ipm_ws workspace;
   d_ocp_qp_ipm_ws_create(&dim, &arg, &workspace, ipm_mem);
 
-  int hpipm_return;  // 0 normal; 1 max iter; 2 linesearch issues?
+  // ocp qp sol
+  hpipm_size_t qp_sol_size = d_ocp_qp_sol_memsize(&dim);
+  void* qp_sol_mem = malloc(qp_sol_size);
+  struct d_ocp_qp_sol qp_sol;
+  d_ocp_qp_sol_create(&dim, &qp_sol, qp_sol_mem);
+  if (warm_start) {
+    for (int k = 0; k < horizon_ - 1; ++k) {
+      d_ocp_qp_sol_set_x(k + 1, xtraj[k + 1].data(), &qp_sol);
+      d_ocp_qp_sol_set_u(k, utraj[k].data(), &qp_sol);
+    }
+  }
 
   d_ocp_qp_ipm_solve(&qp, &qp_sol, &arg, &workspace);
-  d_ocp_qp_ipm_get_status(&workspace, &hpipm_return);
-
-  printf("exitflag %d\n", hpipm_return);
+  printf("exitflag %d\n", workspace.status);
   printf("ipm iter = %d\n", workspace.iter);
 
   // extract and print solution
-  double* x = (double*)malloc(nx_ * sizeof(double));
-  double* u = (double*)malloc(nu_ * sizeof(double));
   for (int k = 0; k < horizon_ - 1; k++) {
-    d_ocp_qp_sol_get_x(k, &qp_sol, x);
-    d_ocp_qp_sol_get_u(k, &qp_sol, u);
-    xtraj[k] = Eigen::Map<ocs2::vector_t>(x, nx_);
-    utraj[k] = Eigen::Map<ocs2::vector_t>(u, nu_);
+    d_ocp_qp_sol_get_x(k, &qp_sol, xtraj[k + 1].data());
+    d_ocp_qp_sol_get_u(k, &qp_sol, utraj[k].data());
   }
-  d_ocp_qp_sol_get_x(horizon_ - 1, &qp_sol, x);
-  xtraj[horizon_ - 1] = Eigen::Map<ocs2::vector_t>(x, nx_);
 
   free(dim_mem);
   free(qp_mem);
   free(qp_sol_mem);
   free(ipm_arg_mem);
   free(ipm_mem);
+}
 
-  free(u);
-  free(x);
+void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj,
+    std::vector<ocs2::vector_t>& utraj,
+    std::vector<ocs2::matrix_t> A,
+    std::vector<ocs2::matrix_t> B,
+    std::vector<ocs2::vector_t> b,
+    std::vector<ocs2::matrix_t> Q,
+    std::vector<ocs2::matrix_t> S,
+    std::vector<ocs2::matrix_t> R,
+    std::vector<ocs2::vector_t> q,
+    std::vector<ocs2::vector_t> r) {
+  // set QP data
+  setDynamics(xtraj[0], A, B, b);
+  setCosts(xtraj[0], q, r, Q, S, R);
+  setBounds();
+  setPolytopicConstraints();
+  setSoftConstraints();
+
+  // solve
+  solve(xtraj, utraj);
 }
