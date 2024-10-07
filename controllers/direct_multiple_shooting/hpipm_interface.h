@@ -33,10 +33,8 @@ class HpipmInterface {
   HpipmInterface(YAML::Node config);
   ~HpipmInterface() = default;
 
-  void solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2::vector_t>& utraj);
-  void solve(std::vector<ocs2::vector_t>& xtraj,
-      std::vector<ocs2::vector_t>& utraj,
-      std::vector<ocs2::matrix_t> A,
+  void solve();
+  void solve(std::vector<ocs2::matrix_t> A,
       std::vector<ocs2::matrix_t> B,
       std::vector<ocs2::vector_t> b,
       std::vector<ocs2::matrix_t> Q,
@@ -45,13 +43,11 @@ class HpipmInterface {
       std::vector<ocs2::vector_t> q,
       std::vector<ocs2::vector_t> r);
 
-  void setDynamics(ocs2::vector_t& x0, ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index);
-  void setDynamics(ocs2::vector_t& x0, std::vector<ocs2::matrix_t>& A, std::vector<ocs2::matrix_t>& B, std::vector<ocs2::vector_t>& b);
+  void setDynamics(ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index);
+  void setDynamics(std::vector<ocs2::matrix_t>& A, std::vector<ocs2::matrix_t>& B, std::vector<ocs2::vector_t>& b);
 
-  void
-  setCosts(ocs2::vector_t& x0, ocs2::vector_t& df_dx, ocs2::vector_t& df_du, ocs2::matrix_t& df_dxx, ocs2::matrix_t& df_dux, ocs2::matrix_t& df_duu, int index);
-  void setCosts(ocs2::vector_t& x0,
-      std::vector<ocs2::vector_t>& q,
+  void setCosts(ocs2::vector_t& df_dx, ocs2::vector_t& df_du, ocs2::matrix_t& df_dxx, ocs2::matrix_t& df_dux, ocs2::matrix_t& df_duu, int index);
+  void setCosts(std::vector<ocs2::vector_t>& q,
       std::vector<ocs2::vector_t>& r,
       std::vector<ocs2::matrix_t>& Q,
       std::vector<ocs2::matrix_t>& S,
@@ -61,6 +57,9 @@ class HpipmInterface {
   void setBounds();
   void setPolytopicConstraints();
   void setSoftConstraints();
+
+  std::vector<ocs2::vector_t> get_delta_xtraj() { return delta_xtraj; }
+  std::vector<ocs2::vector_t> get_delta_utraj() { return delta_utraj; }
 
   private:
   int* nx;    // number of states
@@ -126,4 +125,7 @@ class HpipmInterface {
   int horizon_;
 
   int* initialStateBoundIndex;
+
+  std::vector<ocs2::vector_t> delta_xtraj;
+  std::vector<ocs2::vector_t> delta_utraj;
 };

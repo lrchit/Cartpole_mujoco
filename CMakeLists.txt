@@ -146,12 +146,6 @@ target_link_libraries(main
 #   shared_lib
 # )
 
-add_executable(test_hpipm test/testHpipmMpc.cpp
-  ${DMS_SRC}
-)
-target_link_libraries(test_hpipm
-  shared_lib
-)
 
 
 

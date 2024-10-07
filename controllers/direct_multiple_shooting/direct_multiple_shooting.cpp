@@ -57,8 +57,6 @@ void DirectMultipleShooting::setupProblem() {
     // Calculate derivatives
     std::tie(derivatives.lx[k], derivatives.lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xref[k]);
     std::tie(derivatives.lxx[k], derivatives.lux[k], derivatives.luu[k]) = cost_[k]->getSecondDerivatives(xtraj[k], utraj[k], xref[k]);
-    derivatives.lx[k] = derivatives.lx[k] - derivatives.lxx[k] * xtraj[k];
-    derivatives.lu[k] = derivatives.lu[k] - derivatives.luu[k] * utraj[k];
 
     // df/dx for A and df/du for B
     std::tie(derivatives.fx[k], derivatives.fu[k]) = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
@@ -66,7 +64,6 @@ void DirectMultipleShooting::setupProblem() {
   std::tie(derivatives.lx[horizon_ - 1], derivatives.lu[horizon_ - 1]) = cost_[horizon_ - 1]->getFirstDerivatives(xtraj[horizon_ - 1], xref[horizon_ - 1]);
   std::tie(derivatives.lxx[horizon_ - 1], derivatives.lux[horizon_ - 1], derivatives.luu[horizon_ - 1]) =
       cost_[horizon_ - 1]->getSecondDerivatives(xtraj[horizon_ - 1], xref[horizon_ - 1]);
-  derivatives.lx[horizon_ - 1] = derivatives.lx[horizon_ - 1] - derivatives.lxx[horizon_ - 1] * xtraj[horizon_ - 1];
 }
 
 void DirectMultipleShooting::launch_controller(const ocs2::vector_t& xcur, const std::vector<ocs2::vector_t>& x_ref) {
@@ -84,24 +81,21 @@ void DirectMultipleShooting::launch_controller(const ocs2::vector_t& xcur, const
   ocs2::scalar_t new_cost = calcCost();
   int counter = 0;
   while ((abs(cost - new_cost) > 1.0e-2) && (counter < max_iter_)) {
-    counter++;
-    std::cerr << "mpc iter = " << counter << std::endl;
+    std::cerr << "mpc iter = " << counter + 1 << std::endl;
     cost = new_cost;
 
     // calc derivatives
     setupProblem();
 
     // solve nonlinear program
-    hpipmInterface_->solve(
-        xtraj, utraj, derivatives.fx, derivatives.fu, derivatives.b, derivatives.lxx, derivatives.lux, derivatives.luu, derivatives.lx, derivatives.lu);
+    hpipmInterface_->solve(derivatives.fx, derivatives.fu, derivatives.b, derivatives.lxx, derivatives.lux, derivatives.luu, derivatives.lx, derivatives.lu);
+    auto delta_xtraj = hpipmInterface_->get_delta_xtraj();
+    auto delta_utraj = hpipmInterface_->get_delta_utraj();
 
-    // ocs2::vector_t nominal_traj = xtraj[0];
-    // for (size_t i = 1; i < xtraj.size(); ++i) {
-    //   nominal_traj = dynamics_model_[i]->getValue(nominal_traj, utraj[i - 1]);
-    //   std::cerr << "xtraj approx " << i << " = " << xtraj[i].transpose() << std::endl;
-    //   std::cerr << "xtraj nominal " << i << " = " << nominal_traj.transpose() << std::endl;
-    // }
-    // exit(0);
+    for (size_t k = 0; k < horizon_ - 1; ++k) {
+      xtraj[k + 1] = xtraj[k + 1] + delta_xtraj[k + 1];
+      utraj[k] = utraj[k] + delta_utraj[k];
+    }
 
     // update cost
     new_cost = calcCost();
@@ -109,8 +103,12 @@ void DirectMultipleShooting::launch_controller(const ocs2::vector_t& xcur, const
     if (new_cost > cost) {
       break;
     }
+
+    counter++;
   }
-  // for (size_t i = 0; i < xtraj.size(); ++i) {
-  //   std::cerr << "xtraj " << i << " = " << xtraj[i].transpose() << std::endl;
-  // }
+  for (size_t i = 0; i < utraj.size(); ++i) {
+    std::cerr << "utraj " << i << " = " << utraj[i].transpose() << std::endl;
+  }
+  std::cerr << "mpc iter = " << counter << std::endl;
+  // exit(0);
 }

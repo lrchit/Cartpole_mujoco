@@ -58,54 +58,42 @@ HpipmInterface::HpipmInterface(YAML::Node config) {
   for (int i = 0; i < nx_; ++i) {
     initialStateBoundIndex[i] = i;
   }
+
+  delta_xtraj.resize(horizon_, ocs2::vector_t::Zero(nx_));
+  delta_utraj.resize(horizon_ - 1, ocs2::vector_t::Zero(nu_));
 }
 
-void HpipmInterface::setCosts(ocs2::vector_t& x0, ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix_t& Q, ocs2::matrix_t& S, ocs2::matrix_t& R, int index) {
+void HpipmInterface::setCosts(ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix_t& Q, ocs2::matrix_t& S, ocs2::matrix_t& R, int index) {
   hQ[index] = Q.data();
   hq[index] = q.data();
 
   if (index < horizon_) {
     hR[index] = R.data();
     hS[index] = S.data();
-
-    // r0 = r + S * x0
-    if (index == 0) {
-      ocs2::vector_t r0 = r + S * x0;
-      hr[index] = r0.data();
-    } else {
-      hr[index] = r.data();
-    }
+    hr[index] = r.data();
   }
 }
 
-void HpipmInterface::setCosts(ocs2::vector_t& x0,
-    std::vector<ocs2::vector_t>& q,
+void HpipmInterface::setCosts(std::vector<ocs2::vector_t>& q,
     std::vector<ocs2::vector_t>& r,
     std::vector<ocs2::matrix_t>& Q,
     std::vector<ocs2::matrix_t>& S,
     std::vector<ocs2::matrix_t>& R) {
   for (int k = 0; k < horizon_ - 1; ++k) {
-    setCosts(x0, q[k], r[k], Q[k], S[k], R[k], k);
+    setCosts(q[k], r[k], Q[k], S[k], R[k], k);
   }
-  setCosts(x0, q[horizon_ - 1], r[horizon_ - 1], Q[horizon_ - 1], S[horizon_ - 1], R[horizon_ - 1], horizon_ - 1);
+  setCosts(q[horizon_ - 1], r[horizon_ - 1], Q[horizon_ - 1], S[horizon_ - 1], R[horizon_ - 1], horizon_ - 1);
 }
 
-void HpipmInterface::setDynamics(ocs2::vector_t& x0, ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index) {
+void HpipmInterface::setDynamics(ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index) {
   hA[index] = A.data();
   hB[index] = B.data();
-
-  // b0 = b + A * x0
-  if (index == 0) {
-    ocs2::vector_t b0 = A * x0 + b;
-    hb[index] = b0.data();
-  } else {
-    hb[index] = b.data();
-  }
+  hb[index] = b.data();
 }
 
-void HpipmInterface::setDynamics(ocs2::vector_t& x0, std::vector<ocs2::matrix_t>& A, std::vector<ocs2::matrix_t>& B, std::vector<ocs2::vector_t>& b) {
+void HpipmInterface::setDynamics(std::vector<ocs2::matrix_t>& A, std::vector<ocs2::matrix_t>& B, std::vector<ocs2::vector_t>& b) {
   for (int k = 0; k < horizon_ - 1; ++k) {
-    setDynamics(x0, A[k], B[k], b[k], k);
+    setDynamics(A[k], B[k], b[k], k);
   }
 }
 
@@ -153,7 +141,7 @@ void HpipmInterface::setSoftConstraints() {
   }
 }
 
-void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2::vector_t>& utraj) {
+void HpipmInterface::solve() {
   // ocp qp dim
   hpipm_size_t dim_size = d_ocp_qp_dim_memsize(horizon_ - 1);
   void* dim_mem = malloc(dim_size);
@@ -214,8 +202,8 @@ void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2:
   d_ocp_qp_sol_create(&dim, &qp_sol, qp_sol_mem);
   if (warm_start) {
     for (int k = 0; k < horizon_ - 1; ++k) {
-      d_ocp_qp_sol_set_x(k + 1, xtraj[k + 1].data(), &qp_sol);
-      d_ocp_qp_sol_set_u(k, utraj[k].data(), &qp_sol);
+      d_ocp_qp_sol_set_x(k + 1, delta_xtraj[k + 1].data(), &qp_sol);
+      d_ocp_qp_sol_set_u(k, delta_utraj[k].data(), &qp_sol);
     }
   }
 
@@ -225,8 +213,8 @@ void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2:
 
   // extract and print solution
   for (int k = 0; k < horizon_ - 1; k++) {
-    d_ocp_qp_sol_get_x(k, &qp_sol, xtraj[k + 1].data());
-    d_ocp_qp_sol_get_u(k, &qp_sol, utraj[k].data());
+    d_ocp_qp_sol_get_x(k, &qp_sol, delta_xtraj[k + 1].data());
+    d_ocp_qp_sol_get_u(k, &qp_sol, delta_utraj[k].data());
   }
 
   free(dim_mem);
@@ -236,9 +224,7 @@ void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj, std::vector<ocs2:
   free(ipm_mem);
 }
 
-void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj,
-    std::vector<ocs2::vector_t>& utraj,
-    std::vector<ocs2::matrix_t> A,
+void HpipmInterface::solve(std::vector<ocs2::matrix_t> A,
     std::vector<ocs2::matrix_t> B,
     std::vector<ocs2::vector_t> b,
     std::vector<ocs2::matrix_t> Q,
@@ -247,12 +233,12 @@ void HpipmInterface::solve(std::vector<ocs2::vector_t>& xtraj,
     std::vector<ocs2::vector_t> q,
     std::vector<ocs2::vector_t> r) {
   // set QP data
-  setDynamics(xtraj[0], A, B, b);
-  setCosts(xtraj[0], q, r, Q, S, R);
+  setDynamics(A, B, b);
+  setCosts(q, r, Q, S, R);
   setBounds();
   setPolytopicConstraints();
   setSoftConstraints();
 
   // solve
-  solve(xtraj, utraj);
+  solve();
 }
