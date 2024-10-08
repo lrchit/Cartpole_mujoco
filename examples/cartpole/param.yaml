@@ -39,13 +39,23 @@ mpcFrequency: 500
 mrtFrequency: 500
 useFeedbackPolicy: false
 
-# line search
-sigma: 0.5
-beta: 1.0e-2
+# iLQR settings
+iLQR:
+  # line search
+  sigma: 0.5
+  beta: 1.0e-2
 
-# iLQR convergence
-max_iteration: 100
-tolerance: 1.0e-2
+  # iLQR convergence
+  max_iteration: 100
+  tolerance: 1.0e-2
 
-# verbose
-verbose_cal_time: true
+  # verbose
+  verbose_cal_time: true
+
+dms:
+  # dms convergence
+  max_iteration: 100
+  tolerance: 1.0e-2
+
+  # verbose
+  verbose_cal_time: true

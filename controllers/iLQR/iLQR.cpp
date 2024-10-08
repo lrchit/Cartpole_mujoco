@@ -17,11 +17,11 @@ iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_m
   // feedback gain for initial guess
   K_guess = Kguess;
 
-  sigma = config["sigma"].as<double>();
-  beta = config["beta"].as<double>();
-  tolerance = config["tolerance"].as<double>();
+  sigma = config["iLQR"]["sigma"].as<double>();
+  beta = config["iLQR"]["beta"].as<double>();
+  tolerance = config["iLQR"]["tolerance"].as<double>();
 
-  verbose_cal_time = config["verbose_cal_time"].as<bool>();
+  verbose_cal_time = config["iLQR"]["verbose_cal_time"].as<bool>();
 
   p.resize(Nt);
   P.resize(Nt);

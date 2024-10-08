@@ -34,24 +34,9 @@ class HpipmInterface {
   ~HpipmInterface() = default;
 
   void solve();
-  void solve(std::vector<ocs2::matrix_t> A,
-      std::vector<ocs2::matrix_t> B,
-      std::vector<ocs2::vector_t> b,
-      std::vector<ocs2::matrix_t> Q,
-      std::vector<ocs2::matrix_t> S,
-      std::vector<ocs2::matrix_t> R,
-      std::vector<ocs2::vector_t> q,
-      std::vector<ocs2::vector_t> r);
 
   void setDynamics(ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index);
-  void setDynamics(std::vector<ocs2::matrix_t>& A, std::vector<ocs2::matrix_t>& B, std::vector<ocs2::vector_t>& b);
-
-  void setCosts(ocs2::vector_t& df_dx, ocs2::vector_t& df_du, ocs2::matrix_t& df_dxx, ocs2::matrix_t& df_dux, ocs2::matrix_t& df_duu, int index);
-  void setCosts(std::vector<ocs2::vector_t>& q,
-      std::vector<ocs2::vector_t>& r,
-      std::vector<ocs2::matrix_t>& Q,
-      std::vector<ocs2::matrix_t>& S,
-      std::vector<ocs2::matrix_t>& R);
+  void setCosts(ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix_t& Q, ocs2::matrix_t& S, ocs2::matrix_t& R, int index);
 
   // these are not support currently
   void setBounds();

@@ -74,27 +74,10 @@ void HpipmInterface::setCosts(ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix
   }
 }
 
-void HpipmInterface::setCosts(std::vector<ocs2::vector_t>& q,
-    std::vector<ocs2::vector_t>& r,
-    std::vector<ocs2::matrix_t>& Q,
-    std::vector<ocs2::matrix_t>& S,
-    std::vector<ocs2::matrix_t>& R) {
-  for (int k = 0; k < horizon_ - 1; ++k) {
-    setCosts(q[k], r[k], Q[k], S[k], R[k], k);
-  }
-  setCosts(q[horizon_ - 1], r[horizon_ - 1], Q[horizon_ - 1], S[horizon_ - 1], R[horizon_ - 1], horizon_ - 1);
-}
-
 void HpipmInterface::setDynamics(ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index) {
   hA[index] = A.data();
   hB[index] = B.data();
   hb[index] = b.data();
-}
-
-void HpipmInterface::setDynamics(std::vector<ocs2::matrix_t>& A, std::vector<ocs2::matrix_t>& B, std::vector<ocs2::vector_t>& b) {
-  for (int k = 0; k < horizon_ - 1; ++k) {
-    setDynamics(A[k], B[k], b[k], k);
-  }
 }
 
 // no bounds supported
@@ -158,7 +141,6 @@ void HpipmInterface::solve() {
 
   // ocp qp ipm arg
   hpipm_size_t ipm_arg_size = d_ocp_qp_ipm_arg_memsize(&dim);
-  printf("\nipm arg size = %zu\n", ipm_arg_size);
   void* ipm_arg_mem = malloc(ipm_arg_size);
   struct d_ocp_qp_ipm_arg arg;
   d_ocp_qp_ipm_arg_create(&dim, &arg, ipm_arg_mem);
@@ -208,8 +190,8 @@ void HpipmInterface::solve() {
   }
 
   d_ocp_qp_ipm_solve(&qp, &qp_sol, &arg, &workspace);
-  printf("exitflag %d\n", workspace.status);
-  printf("ipm iter = %d\n", workspace.iter);
+  // printf("exitflag %d\n", workspace.status);
+  // printf("ipm iter = %d\n", workspace.iter);
 
   // extract and print solution
   for (int k = 0; k < horizon_ - 1; k++) {
@@ -222,23 +204,4 @@ void HpipmInterface::solve() {
   free(qp_sol_mem);
   free(ipm_arg_mem);
   free(ipm_mem);
-}
-
-void HpipmInterface::solve(std::vector<ocs2::matrix_t> A,
-    std::vector<ocs2::matrix_t> B,
-    std::vector<ocs2::vector_t> b,
-    std::vector<ocs2::matrix_t> Q,
-    std::vector<ocs2::matrix_t> S,
-    std::vector<ocs2::matrix_t> R,
-    std::vector<ocs2::vector_t> q,
-    std::vector<ocs2::vector_t> r) {
-  // set QP data
-  setDynamics(A, B, b);
-  setCosts(q, r, Q, S, R);
-  setBounds();
-  setPolytopicConstraints();
-  setSoftConstraints();
-
-  // solve
-  solve();
 }

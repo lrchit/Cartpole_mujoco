@@ -26,6 +26,7 @@ class DirectMultipleShooting : public ControllerBase {
   int nu_;
   int horizon_;
   int max_iter_;
+  ocs2::scalar_t tolerance_;
   ocs2::matrix_t K_;
   Derivatives derivatives;
 
