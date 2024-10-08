@@ -8,7 +8,6 @@
 #include <vector>
 #include <yaml-cpp/yaml.h>
 
-#include "pd_controller.h"
 #include <dynamics.h>
 #include <cost.h>
 
@@ -66,7 +65,8 @@ class iLQR_Solver : public ControllerBase {
   ocs2::matrix_t K_guess;
 
   DDP_Matrix ddp_matrix;
-  Derivatives derivatives;
+  std::unique_ptr<CostDerivatives> costDerivatives;
+  std::unique_ptr<DynamicsDerivatives> dynamicsDerivatives;
 
   // line search param
   ocs2::scalar_t sigma;

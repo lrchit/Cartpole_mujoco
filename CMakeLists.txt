@@ -57,11 +57,15 @@ include_directories(
     ${blasfeo_DIR}/include
     simulate
     controllers
+    controllers/mpc
     controllers/iLQR
     controllers/idto
     controllers/direct_multiple_shooting
     auto_diff
     examples/common
+    examples/common/cost
+    examples/common/dynamics
+    examples/common/constraint
     examples/cartpole
     examples/quadruped
     ${PYTHON_INCLUDE_DIRS}
@@ -89,11 +93,15 @@ if(NOT TARGET lodepng)
 endif()
 
 aux_source_directory(simulate SIM_SRC)
+aux_source_directory(controllers/mpc MPC_SRC)
 aux_source_directory(controllers/iLQR ILQR_SRC)
 aux_source_directory(controllers/idto IDTO_SRC)
 aux_source_directory(controllers/direct_multiple_shooting DMS_SRC)
 aux_source_directory(auto_diff AUTO_DIFF_SRC)
 aux_source_directory(examples/common COMMON_SRC)
+aux_source_directory(examples/common/cost COST_SRC)
+aux_source_directory(examples/common/dynamics DYNAMICS_SRC)
+aux_source_directory(examples/common/constraint CONSTRAINT_SRC)
 aux_source_directory(examples/cartpole CARTPOLE_SRC)
 aux_source_directory(examples/quadruped QUADRUPED_SRC)
 
@@ -114,12 +122,16 @@ target_link_libraries(shared_lib INTERFACE
 )
 
 add_executable(main main.cpp
+                    ${MPC_SRC}
                     ${ILQR_SRC}
                     ${IDTO_SRC}
                     ${DMS_SRC}
                     ${SIM_SRC}
                     ${AUTO_DIFF_SRC}
                     ${COMMON_SRC}
+                    ${COST_SRC}
+                    ${DYNAMICS_SRC}
+                    ${CONSTRAINT_SRC}
                     ${CARTPOLE_SRC}
                     ${QUADRUPED_SRC}
 )

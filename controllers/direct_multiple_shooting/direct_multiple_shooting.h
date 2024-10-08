@@ -5,6 +5,7 @@
 
 #include <dynamics.h>
 #include <cost.h>
+#include <constraint.h>
 #include <controller.h>
 
 #include <yaml-cpp/yaml.h>
@@ -12,7 +13,7 @@
 class DirectMultipleShooting : public ControllerBase {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  DirectMultipleShooting(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost);
+  DirectMultipleShooting(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost, std::shared_ptr<Constraint> constraint);
   ~DirectMultipleShooting() {}
 
   virtual ocs2::matrix_t getFeedBackMatrix() override { return K_; };
@@ -28,9 +29,14 @@ class DirectMultipleShooting : public ControllerBase {
   int max_iter_;
   ocs2::scalar_t tolerance_;
   ocs2::matrix_t K_;
-  Derivatives derivatives;
+  std::unique_ptr<CostDerivatives> costDerivatives_;
+  std::unique_ptr<DynamicsDerivatives> dynamicsDerivatives_;
+
+  std::vector<ocs2::vector_t> idxbx_;
+  std::vector<ocs2::vector_t> idxbu_;
 
   std::shared_ptr<HpipmInterface> hpipmInterface_;
   std::vector<std::shared_ptr<Cost>> cost_;
   std::vector<std::shared_ptr<Dynamics>> dynamics_model_;
+  std::vector<std::shared_ptr<Constraint>> constraint_;
 };

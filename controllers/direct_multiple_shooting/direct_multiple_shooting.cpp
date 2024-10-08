@@ -1,7 +1,10 @@
 
 #include <direct_multiple_shooting.h>
 
-DirectMultipleShooting::DirectMultipleShooting(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost) {
+DirectMultipleShooting::DirectMultipleShooting(YAML::Node config,
+    std::shared_ptr<Dynamics> dynamics_model,
+    std::shared_ptr<Cost> cost,
+    std::shared_ptr<Constraint> constraint) {
   nx_ = config["nx"].as<int>();
   nu_ = config["nu"].as<int>();
   horizon_ = config["horizon"].as<int>() + 1;
@@ -12,6 +15,7 @@ DirectMultipleShooting::DirectMultipleShooting(YAML::Node config, std::shared_pt
   for (int i = 0; i < horizon_; ++i) {
     dynamics_model_.push_back(dynamics_model);
     cost_.push_back(cost);
+    constraint_.push_back(constraint);
   }
 
   K_.setZero(nu_, nx_);
@@ -22,14 +26,9 @@ DirectMultipleShooting::DirectMultipleShooting(YAML::Node config, std::shared_pt
     }
   }
 
-  derivatives.lx.resize(horizon_);
-  derivatives.lu.resize(horizon_);
-  derivatives.lxx.resize(horizon_);
-  derivatives.lux.resize(horizon_);
-  derivatives.luu.resize(horizon_);
-  derivatives.fx.resize(horizon_ - 1);
-  derivatives.fu.resize(horizon_ - 1);
-  derivatives.b.resize(horizon_ - 1);
+  costDerivatives_.reset(new CostDerivatives(horizon_));
+  dynamicsDerivatives_.reset(new DynamicsDerivatives(horizon_));
+
   xtraj.resize(horizon_);
   utraj.resize(horizon_ - 1);
   xref.resize(horizon_);
@@ -37,7 +36,7 @@ DirectMultipleShooting::DirectMultipleShooting(YAML::Node config, std::shared_pt
     xtraj[k].setZero(nx_);
     utraj[k].setZero(nu_);
     xref[k].setZero(nx_);
-    derivatives.b[k].setZero(nx_);
+    dynamicsDerivatives_->b[k].setZero(nx_);
   }
   xtraj[horizon_ - 1].setZero(nx_);
   xref[horizon_ - 1].setZero(nx_);
@@ -56,20 +55,31 @@ ocs2::scalar_t DirectMultipleShooting::calcCost() {
 void DirectMultipleShooting::setupProblem() {
   // #pragma omp parallel for num_threads(4)
   for (int k = 0; k < horizon_ - 1; ++k) {
-    // Calculate derivatives
-    std::tie(derivatives.lx[k], derivatives.lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xref[k]);
-    std::tie(derivatives.lxx[k], derivatives.lux[k], derivatives.luu[k]) = cost_[k]->getSecondDerivatives(xtraj[k], utraj[k], xref[k]);
-    hpipmInterface_->setCosts(derivatives.lx[k], derivatives.lu[k], derivatives.lxx[k], derivatives.lux[k], derivatives.luu[k], k);
+    // calc cost derivatives
+    std::tie(costDerivatives_->lx[k], costDerivatives_->lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xref[k]);
+    std::tie(costDerivatives_->lxx[k], costDerivatives_->lux[k], costDerivatives_->luu[k]) = cost_[k]->getSecondDerivatives(xtraj[k], utraj[k], xref[k]);
+    hpipmInterface_->setCosts(
+        k, costDerivatives_->lx[k], costDerivatives_->lu[k], costDerivatives_->lxx[k], costDerivatives_->lux[k], costDerivatives_->luu[k]);
 
-    // df/dx for A and df/du for B
-    std::tie(derivatives.fx[k], derivatives.fu[k]) = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
-    hpipmInterface_->setDynamics(derivatives.fx[k], derivatives.fu[k], derivatives.b[k], k);
+    // calc dynamics derivatives
+    std::tie(dynamicsDerivatives_->fx[k], dynamicsDerivatives_->fu[k]) = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
+    hpipmInterface_->setDynamics(k, dynamicsDerivatives_->fx[k], dynamicsDerivatives_->fu[k]);
+
+    // // calc constraint settings
+    // std::vector<ocs2::vector_t> bounds = constraint_->getBounds(xtraj[k], utraj[k]);
+    // hpipmInterface_->setBounds(bounds[0], bounds[1], boxConstraint_.idxbx, bounds[2], bounds[3], boxConstraint_.idxbu);
   }
-  std::tie(derivatives.lx[horizon_ - 1], derivatives.lu[horizon_ - 1]) = cost_[horizon_ - 1]->getFirstDerivatives(xtraj[horizon_ - 1], xref[horizon_ - 1]);
-  std::tie(derivatives.lxx[horizon_ - 1], derivatives.lux[horizon_ - 1], derivatives.luu[horizon_ - 1]) =
+  // calc terminal cost derivatives
+  std::tie(costDerivatives_->lx[horizon_ - 1], costDerivatives_->lu[horizon_ - 1]) =
+      cost_[horizon_ - 1]->getFirstDerivatives(xtraj[horizon_ - 1], xref[horizon_ - 1]);
+  std::tie(costDerivatives_->lxx[horizon_ - 1], costDerivatives_->lux[horizon_ - 1], costDerivatives_->luu[horizon_ - 1]) =
       cost_[horizon_ - 1]->getSecondDerivatives(xtraj[horizon_ - 1], xref[horizon_ - 1]);
-  hpipmInterface_->setCosts(derivatives.lx[horizon_ - 1], derivatives.lu[horizon_ - 1], derivatives.lxx[horizon_ - 1], derivatives.lux[horizon_ - 1],
-      derivatives.luu[horizon_ - 1], horizon_ - 1);
+  hpipmInterface_->setCosts(horizon_ - 1, costDerivatives_->lx[horizon_ - 1], costDerivatives_->lu[horizon_ - 1], costDerivatives_->lxx[horizon_ - 1],
+      costDerivatives_->lux[horizon_ - 1], costDerivatives_->luu[horizon_ - 1]);
+
+  // // calc terminal constraint settings
+  // std::vector<ocs2::vector_t> bounds = constraint_->getBounds(xtraj[k], utraj[k]);
+  // hpipmInterface_->setBounds(horizon_ - 1, bounds[0], bounds[1], boxConstraint_.idxbx, bounds[2], bounds[3], boxConstraint_.idxbu);
 
   hpipmInterface_->setBounds();
   hpipmInterface_->setPolytopicConstraints();

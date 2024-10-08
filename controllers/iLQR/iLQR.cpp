@@ -6,8 +6,6 @@ iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_m
   nx = config["nx"].as<double>();
   nu = config["nu"].as<double>();
 
-  max_iteration = config["max_iteration"].as<double>();
-
   // dynamics and cost
   for (int i = 0; i < Nt; ++i) {
     dynamics_model_.push_back(dynamics_model);
@@ -20,20 +18,15 @@ iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_m
   sigma = config["iLQR"]["sigma"].as<double>();
   beta = config["iLQR"]["beta"].as<double>();
   tolerance = config["iLQR"]["tolerance"].as<double>();
-
+  max_iteration = config["iLQR"]["max_iteration"].as<double>();
   verbose_cal_time = config["iLQR"]["verbose_cal_time"].as<bool>();
 
   p.resize(Nt);
   P.resize(Nt);
   d.resize(Nt - 1);
   K.resize(Nt - 1);
-  derivatives.lx.resize(Nt);
-  derivatives.lu.resize(Nt - 1);
-  derivatives.lxx.resize(Nt);
-  derivatives.lux.resize(Nt - 1);
-  derivatives.luu.resize(Nt - 1);
-  derivatives.fx.resize(Nt - 1);
-  derivatives.fu.resize(Nt - 1);
+  costDerivatives.reset(new CostDerivatives(Nt));
+  dynamicsDerivatives.reset(new DynamicsDerivatives(Nt));
   xtraj.resize(Nt);
   utraj.resize(Nt - 1);
   xref.resize(Nt);
@@ -75,7 +68,7 @@ iLQR_Solver::~iLQR_Solver() {
   }
 }
 
-// cost derivatives.function
+// cost dynamicsDerivatives->function
 double iLQR_Solver::calCost(const std::vector<ocs2::vector_t>& _xtraj, const std::vector<ocs2::vector_t>& _utraj) {
   double J = 0.0;
   for (int k = 0; k < (Nt - 1); ++k) {
@@ -89,30 +82,30 @@ void iLQR_Solver::calDerivatives() {
   // #pragma omp parallel for num_threads(4)
   for (int k = (Nt - 2); k > -1; --k) {
     // Calculate derivatives
-    std::tie(derivatives.lx[k], derivatives.lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xref[k]);
-    std::tie(derivatives.lxx[k], derivatives.lux[k], derivatives.luu[k]) = cost_[k]->getSecondDerivatives(xtraj[k], utraj[k], xref[k]);
+    std::tie(costDerivatives->lx[k], costDerivatives->lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xref[k]);
+    std::tie(costDerivatives->lxx[k], costDerivatives->lux[k], costDerivatives->luu[k]) = cost_[k]->getSecondDerivatives(xtraj[k], utraj[k], xref[k]);
 
     // df/dx for A and df/du for B
-    std::tie(derivatives.fx[k], derivatives.fu[k]) = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
+    std::tie(dynamicsDerivatives->fx[k], dynamicsDerivatives->fu[k]) = dynamics_model_[k]->getFirstDerivatives(xtraj[k], utraj[k]);
   }
-  std::tie(derivatives.lx[Nt - 1], std::ignore) = cost_[Nt - 1]->getFirstDerivatives(xtraj[Nt - 1], xref[Nt - 1]);
-  std::tie(derivatives.lxx[Nt - 1], std::ignore, std::ignore) = cost_[Nt - 1]->getSecondDerivatives(xtraj[Nt - 1], xref[Nt - 1]);
+  std::tie(costDerivatives->lx[Nt - 1], std::ignore) = cost_[Nt - 1]->getFirstDerivatives(xtraj[Nt - 1], xref[Nt - 1]);
+  std::tie(costDerivatives->lxx[Nt - 1], std::ignore, std::ignore) = cost_[Nt - 1]->getSecondDerivatives(xtraj[Nt - 1], xref[Nt - 1]);
 }
 
 double iLQR_Solver::backward_pass() {
   double delta_J = 0.0;
-  p[Nt - 1].noalias() = derivatives.lx[Nt - 1];
-  P[Nt - 1].noalias() = derivatives.lxx[Nt - 1];
+  p[Nt - 1].noalias() = costDerivatives->lx[Nt - 1];
+  P[Nt - 1].noalias() = costDerivatives->lxx[Nt - 1];
 
   for (int k = (Nt - 2); k > -1; --k) {
-    ddp_matrix.Qx.noalias() = (derivatives.lx[k] + derivatives.fx[k].transpose() * p[k + 1]).eval();
-    ddp_matrix.Qu.noalias() = (derivatives.lu[k] + derivatives.fu[k].transpose() * p[k + 1]).eval();
+    ddp_matrix.Qx.noalias() = (costDerivatives->lx[k] + dynamicsDerivatives->fx[k].transpose() * p[k + 1]).eval();
+    ddp_matrix.Qu.noalias() = (costDerivatives->lu[k] + dynamicsDerivatives->fu[k].transpose() * p[k + 1]).eval();
 
     // iLQR (Gauss-Newton) version
-    ddp_matrix.Qxx.noalias() = (derivatives.lxx[k] + derivatives.fx[k].transpose() * P[k + 1] * derivatives.fx[k]).eval();
-    ddp_matrix.Quu.noalias() = (derivatives.luu[k] + derivatives.fu[k].transpose() * P[k + 1] * derivatives.fu[k]).eval();
+    ddp_matrix.Qxx.noalias() = (costDerivatives->lxx[k] + dynamicsDerivatives->fx[k].transpose() * P[k + 1] * dynamicsDerivatives->fx[k]).eval();
+    ddp_matrix.Quu.noalias() = (costDerivatives->luu[k] + dynamicsDerivatives->fu[k].transpose() * P[k + 1] * dynamicsDerivatives->fu[k]).eval();
     ddp_matrix.Quu_inverse.noalias() = ddp_matrix.Quu.ldlt().solve(ocs2::matrix_t::Identity(nu, nu));
-    ddp_matrix.Qux.noalias() = derivatives.lux[k] + (derivatives.fu[k].transpose() * P[k + 1] * derivatives.fx[k]).eval();
+    ddp_matrix.Qux.noalias() = costDerivatives->lux[k] + (dynamicsDerivatives->fu[k].transpose() * P[k + 1] * dynamicsDerivatives->fx[k]).eval();
     ddp_matrix.Qxu.noalias() = ddp_matrix.Qux.transpose().eval();
 
     d[k].noalias() = (-ddp_matrix.Quu_inverse * ddp_matrix.Qu).eval();

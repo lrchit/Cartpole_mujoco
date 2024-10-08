@@ -6,8 +6,16 @@
 
 #include <Types.h>
 
-struct Derivatives {
+struct CostDerivatives {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  CostDerivatives(int horizon) {
+    lx.resize(horizon);
+    lu.resize(horizon);
+    lxx.resize(horizon);
+    lux.resize(horizon);
+    luu.resize(horizon);
+  }
 
   // cost 2nd order approximation
   std::vector<ocs2::vector_t> lx;
@@ -15,6 +23,16 @@ struct Derivatives {
   std::vector<ocs2::matrix_t> lxx;
   std::vector<ocs2::matrix_t> lux;
   std::vector<ocs2::matrix_t> luu;
+};
+
+struct DynamicsDerivatives {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  DynamicsDerivatives(int horizon) {
+    fx.resize(horizon - 1);
+    fu.resize(horizon - 1);
+    b.resize(horizon - 1);
+  }
 
   // dynamics 1st order approximation
   std::vector<ocs2::matrix_t> fx;

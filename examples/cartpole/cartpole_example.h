@@ -5,6 +5,7 @@
 
 #include <cartpole_cost.h>
 #include <cartpole_dynamics.h>
+#include <cartpole_constraint.h>
 #include <mpc.h>
 #include <iLQR.h>
 #include <direct_multiple_shooting.h>
@@ -17,6 +18,7 @@ class Cartpole_Example : public Example {
 
     std::shared_ptr<Cartpole_Dynamics> cartpole_dynamics = std::make_shared<Cartpole_Dynamics>(config);
     std::shared_ptr<Cartpole_Cost> cartpole_cost = std::make_shared<Cartpole_Cost>(config);
+    std::shared_ptr<Cartpole_Constraint> cartpole_constraint = std::make_shared<Cartpole_Constraint>(config);
 
     const int use_which_solver = config["use_which_solver"].as<int>();
     switch (use_which_solver) {
@@ -25,7 +27,7 @@ class Cartpole_Example : public Example {
         mpc.reset(new MpcController(config, std::move(solver)));
         break;
       case 2:  // direct multiple shooting
-        solver.reset(new DirectMultipleShooting(config, cartpole_dynamics, cartpole_cost));
+        solver.reset(new DirectMultipleShooting(config, cartpole_dynamics, cartpole_cost, cartpole_constraint));
         mpc.reset(new MpcController(config, std::move(solver)));
         break;
       default:

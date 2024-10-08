@@ -34,7 +34,6 @@
 #include "example.h"
 #include "cartpole_example.h"
 #include "quadruped_example.h"
-#include "pd_controller.h"
 
 #define MUJOCO_PLUGIN_DIR "mujoco_plugin"
 

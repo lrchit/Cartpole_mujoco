@@ -21,6 +21,9 @@ HpipmInterface::HpipmInterface(YAML::Node config) {
   for (int k = 0; k < horizon_ - 1; ++k) {
     nx[k] = nx_;
     nu[k] = nu_;
+
+    hb[k] = new double[nx_];
+    std::fill(hb[k], hb[k] + nx_, 0.0);
   }
   nx[0] = 0;
   nx[horizon_ - 1] = nx_;
@@ -54,30 +57,26 @@ HpipmInterface::HpipmInterface(YAML::Node config) {
 
   hidxs = new int*[horizon_];
 
-  initialStateBoundIndex = new int[nx_];
-  for (int i = 0; i < nx_; ++i) {
-    initialStateBoundIndex[i] = i;
-  }
+  hpipmWrappers.reset(new HpipmWrappers(config["dms"]["use_partial_condensed"].as<bool>()));
 
   delta_xtraj.resize(horizon_, ocs2::vector_t::Zero(nx_));
   delta_utraj.resize(horizon_ - 1, ocs2::vector_t::Zero(nu_));
 }
 
-void HpipmInterface::setCosts(ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix_t& Q, ocs2::matrix_t& S, ocs2::matrix_t& R, int index) {
-  hQ[index] = Q.data();
-  hq[index] = q.data();
+void HpipmInterface::setCosts(int stage, ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix_t& Q, ocs2::matrix_t& S, ocs2::matrix_t& R) {
+  hQ[stage] = Q.data();
+  hq[stage] = q.data();
 
-  if (index < horizon_) {
-    hR[index] = R.data();
-    hS[index] = S.data();
-    hr[index] = r.data();
+  if (stage < horizon_) {
+    hR[stage] = R.data();
+    hS[stage] = S.data();
+    hr[stage] = r.data();
   }
 }
 
-void HpipmInterface::setDynamics(ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index) {
-  hA[index] = A.data();
-  hB[index] = B.data();
-  hb[index] = b.data();
+void HpipmInterface::setDynamics(int stage, ocs2::matrix_t& A, ocs2::matrix_t& B) {
+  hA[stage] = A.data();
+  hB[stage] = B.data();
 }
 
 // no bounds supported
@@ -93,6 +92,20 @@ void HpipmInterface::setBounds() {
     hlbx[k] = nullptr;
     hubx[k] = nullptr;
   }
+}
+
+void HpipmInterface::setStateBoxConstraints(int stage, ocs2::vector_t& lbx, ocs2::vector_t& ubx, Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbx) {
+  nbx[stage] = idxbx.cols();
+  hidxbx[stage] = idxbx.data();
+  hlbx[stage] = lbx.data();
+  hubx[stage] = ubx.data();
+}
+
+void HpipmInterface::setInputBoxConstraints(int stage, ocs2::vector_t& lbu, ocs2::vector_t& ubu, Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbu) {
+  nbu[stage] = idxbu.cols();
+  hidxbu[stage] = idxbu.data();
+  hlbu[stage] = lbu.data();
+  hubu[stage] = ubu.data();
 }
 
 // no polytopic constraint supported
@@ -126,24 +139,16 @@ void HpipmInterface::setSoftConstraints() {
 
 void HpipmInterface::solve() {
   // ocp qp dim
-  hpipm_size_t dim_size = d_ocp_qp_dim_memsize(horizon_ - 1);
-  void* dim_mem = malloc(dim_size);
-  struct d_ocp_qp_dim dim;
-  d_ocp_qp_dim_create(horizon_ - 1, &dim, dim_mem);
-  d_ocp_qp_dim_set_all(nx, nu, nbx, nbu, ng, nsbx, nsbu, nsg, &dim);
+  hpipmWrappers->resetDim(horizon_);
+  d_ocp_qp_dim_set_all(nx, nu, nbx, nbu, ng, nsbx, nsbu, nsg, &hpipmWrappers->dim);
 
   // ocp qp
-  hpipm_size_t qp_size = d_ocp_qp_memsize(&dim);
-  void* qp_mem = malloc(qp_size);
-  struct d_ocp_qp qp;
-  d_ocp_qp_create(&dim, &qp, qp_mem);
-  d_ocp_qp_set_all(hA, hB, hb, hQ, hS, hR, hq, hr, hidxbx, hlbx, hubx, hidxbu, hlbu, hubu, hC, hD, hlg, hug, hZl, hZu, hzl, hzu, hidxs, hlls, hlus, &qp);
+  hpipmWrappers->resetQp();
+  d_ocp_qp_set_all(
+      hA, hB, hb, hQ, hS, hR, hq, hr, hidxbx, hlbx, hubx, hidxbu, hlbu, hubu, hC, hD, hlg, hug, hZl, hZu, hzl, hzu, hidxs, hlls, hlus, &hpipmWrappers->qp);
 
   // ocp qp ipm arg
-  hpipm_size_t ipm_arg_size = d_ocp_qp_ipm_arg_memsize(&dim);
-  void* ipm_arg_mem = malloc(ipm_arg_size);
-  struct d_ocp_qp_ipm_arg arg;
-  d_ocp_qp_ipm_arg_create(&dim, &arg, ipm_arg_mem);
+  hpipmWrappers->resetArg();
   enum hpipm_mode mode = hpipm_mode::BALANCE;  // BALANCE, ROBUST, SPEED_ABS
   int iter_max = 30;
   double alpha_min = 1.0e-08;
@@ -157,51 +162,39 @@ void HpipmInterface::solve() {
   int pred_corr = 1;
   int ric_alg = 0;
   int split_step = 1;
-  d_ocp_qp_ipm_arg_set_default(mode, &arg);
-  d_ocp_qp_ipm_arg_set_iter_max(&iter_max, &arg);
-  d_ocp_qp_ipm_arg_set_alpha_min(&alpha_min, &arg);
-  d_ocp_qp_ipm_arg_set_mu0(&mu0, &arg);
-  d_ocp_qp_ipm_arg_set_tol_stat(&tol_stat, &arg);
-  d_ocp_qp_ipm_arg_set_tol_eq(&tol_eq, &arg);
-  d_ocp_qp_ipm_arg_set_tol_ineq(&tol_ineq, &arg);
-  d_ocp_qp_ipm_arg_set_tol_comp(&tol_comp, &arg);
-  d_ocp_qp_ipm_arg_set_reg_prim(&reg_prim, &arg);
-  d_ocp_qp_ipm_arg_set_warm_start(&warm_start, &arg);
-  d_ocp_qp_ipm_arg_set_pred_corr(&pred_corr, &arg);
-  d_ocp_qp_ipm_arg_set_ric_alg(&ric_alg, &arg);
-  d_ocp_qp_ipm_arg_set_split_step(&split_step, &arg);
+  d_ocp_qp_ipm_arg_set_default(mode, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_iter_max(&iter_max, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_alpha_min(&alpha_min, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_mu0(&mu0, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_tol_stat(&tol_stat, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_tol_eq(&tol_eq, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_tol_ineq(&tol_ineq, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_tol_comp(&tol_comp, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_reg_prim(&reg_prim, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_warm_start(&warm_start, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_pred_corr(&pred_corr, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_ric_alg(&ric_alg, &hpipmWrappers->arg);
+  d_ocp_qp_ipm_arg_set_split_step(&split_step, &hpipmWrappers->arg);
 
   // ocp qp ipm ws
-  hpipm_size_t ipm_size = d_ocp_qp_ipm_ws_memsize(&dim, &arg);
-  void* ipm_mem = malloc(ipm_size);
-  struct d_ocp_qp_ipm_ws workspace;
-  d_ocp_qp_ipm_ws_create(&dim, &arg, &workspace, ipm_mem);
+  hpipmWrappers->resetWorkSpace();
 
   // ocp qp sol
-  hpipm_size_t qp_sol_size = d_ocp_qp_sol_memsize(&dim);
-  void* qp_sol_mem = malloc(qp_sol_size);
-  struct d_ocp_qp_sol qp_sol;
-  d_ocp_qp_sol_create(&dim, &qp_sol, qp_sol_mem);
+  hpipmWrappers->resetQpSol();
   if (warm_start) {
     for (int k = 0; k < horizon_ - 1; ++k) {
-      d_ocp_qp_sol_set_x(k + 1, delta_xtraj[k + 1].data(), &qp_sol);
-      d_ocp_qp_sol_set_u(k, delta_utraj[k].data(), &qp_sol);
+      d_ocp_qp_sol_set_x(k + 1, delta_xtraj[k + 1].data(), &hpipmWrappers->qp_sol);
+      d_ocp_qp_sol_set_u(k, delta_utraj[k].data(), &hpipmWrappers->qp_sol);
     }
   }
 
-  d_ocp_qp_ipm_solve(&qp, &qp_sol, &arg, &workspace);
+  d_ocp_qp_ipm_solve(&hpipmWrappers->qp, &hpipmWrappers->qp_sol, &hpipmWrappers->arg, &hpipmWrappers->workspace);
   // printf("exitflag %d\n", workspace.status);
   // printf("ipm iter = %d\n", workspace.iter);
 
   // extract and print solution
   for (int k = 0; k < horizon_ - 1; k++) {
-    d_ocp_qp_sol_get_x(k, &qp_sol, delta_xtraj[k + 1].data());
-    d_ocp_qp_sol_get_u(k, &qp_sol, delta_utraj[k].data());
+    d_ocp_qp_sol_get_x(k, &hpipmWrappers->qp_sol, delta_xtraj[k + 1].data());
+    d_ocp_qp_sol_get_u(k, &hpipmWrappers->qp_sol, delta_utraj[k].data());
   }
-
-  free(dim_mem);
-  free(qp_mem);
-  free(qp_sol_mem);
-  free(ipm_arg_mem);
-  free(ipm_mem);
 }

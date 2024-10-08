@@ -7,14 +7,10 @@
 #include <vector>
 #include <Eigen/Dense>
 
-#include "hpipm_d_ocp_qp_ipm.h"
-#include "hpipm_d_ocp_qp_dim.h"
-#include "hpipm_d_ocp_qp.h"
-#include "hpipm_d_ocp_qp_sol.h"
-#include "hpipm_timing.h"
-
 #include <yaml-cpp/yaml.h>
 #include <Types.h>
+
+#include <hpipm_wrapper.h>
 
 struct HpipmBounds {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -35,11 +31,15 @@ class HpipmInterface {
 
   void solve();
 
-  void setDynamics(ocs2::matrix_t& A, ocs2::matrix_t& B, ocs2::vector_t& b, int index);
-  void setCosts(ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix_t& Q, ocs2::matrix_t& S, ocs2::matrix_t& R, int index);
+  void setDynamics(int stage, ocs2::matrix_t& A, ocs2::matrix_t& B);
+  void setCosts(int stage, ocs2::vector_t& q, ocs2::vector_t& r, ocs2::matrix_t& Q, ocs2::matrix_t& S, ocs2::matrix_t& R);
+
+  // box constraints
+  void setBounds();
+  void setStateBoxConstraints(int stage, ocs2::vector_t& lbx, ocs2::vector_t& ubx, Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbx);
+  void setInputBoxConstraints(int stage, ocs2::vector_t& lbu, ocs2::vector_t& ubu, Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbu);
 
   // these are not support currently
-  void setBounds();
   void setPolytopicConstraints();
   void setSoftConstraints();
 
@@ -109,8 +109,10 @@ class HpipmInterface {
   int nu_;
   int horizon_;
 
-  int* initialStateBoundIndex;
+  // hpipm wrappers
+  std::unique_ptr<HpipmWrappers> hpipmWrappers;
 
+  // decision variables
   std::vector<ocs2::vector_t> delta_xtraj;
   std::vector<ocs2::vector_t> delta_utraj;
 };

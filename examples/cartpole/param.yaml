@@ -57,5 +57,8 @@ dms:
   max_iteration: 100
   tolerance: 1.0e-2
 
+  # hpipm settings
+  use_partial_condensed: true
+
   # verbose
   verbose_cal_time: true
