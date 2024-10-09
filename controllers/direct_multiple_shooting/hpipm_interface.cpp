@@ -82,30 +82,46 @@ void HpipmInterface::setDynamics(int stage, ocs2::matrix_t& A, ocs2::matrix_t& B
 // no bounds supported
 void HpipmInterface::setBounds() {
   for (int k = 0; k < horizon_; k++) {
-    nbu[k] = 0;
-    hidxbu[k] = nullptr;
-    hlbu[k] = nullptr;
-    hubu[k] = nullptr;
-
     nbx[k] = 0;
     hidxbx[k] = nullptr;
     hlbx[k] = nullptr;
     hubx[k] = nullptr;
+
+    nbu[k] = 0;
+    hidxbu[k] = nullptr;
+    hlbu[k] = nullptr;
+    hubu[k] = nullptr;
   }
 }
 
-void HpipmInterface::setStateBoxConstraints(int stage, ocs2::vector_t& lbx, ocs2::vector_t& ubx, Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbx) {
+void HpipmInterface::setBounds(int stage,
+    ocs2::vector_t& lbx,
+    ocs2::vector_t& ubx,
+    Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbx,
+    ocs2::vector_t& lbu,
+    ocs2::vector_t& ubu,
+    Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbu) {
   nbx[stage] = idxbx.cols();
   hidxbx[stage] = idxbx.data();
   hlbx[stage] = lbx.data();
   hubx[stage] = ubx.data();
-}
 
-void HpipmInterface::setInputBoxConstraints(int stage, ocs2::vector_t& lbu, ocs2::vector_t& ubu, Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbu) {
   nbu[stage] = idxbu.cols();
   hidxbu[stage] = idxbu.data();
   hlbu[stage] = lbu.data();
   hubu[stage] = ubu.data();
+
+  if (stage < horizon_ - 1) {
+    nbu[stage] = idxbu.cols();
+    hidxbu[stage] = idxbu.data();
+    hlbu[stage] = lbu.data();
+    hubu[stage] = ubu.data();
+  } else {
+    nbu[stage] = 0;
+    hidxbu[stage] = nullptr;
+    hlbu[stage] = nullptr;
+    hubu[stage] = nullptr;
+  }
 }
 
 // no polytopic constraint supported

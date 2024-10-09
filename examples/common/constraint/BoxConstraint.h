@@ -6,46 +6,54 @@
 class BoxConstraint : public Constraint {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  BoxConstraint(int nx, int nu) : nx_(nx), nu_(nu) {}
+  BoxConstraint(int nx, int nu) : nx_(nx), nu_(nu) {
+    lb_.setZero(nx_ + nu_);
+    ub_.setZero(nx_ + nu_);
+  }
 
   ~BoxConstraint() = default;
 
-  void setBounds(const ocs2::vector_t& lbx, const ocs2::vector_t& ubx, const ocs2::vector_t& lbu, const ocs2::vector_t& ubu) {
-    lbx_ = lbx;
-    ubx_ = ubx;
-    lbu_ = lbu;
-    ubu_ = ubu;
+  void setStateBounds(const ocs2::vector_t& lbx, const ocs2::vector_t& ubx) {
+    lb_.head(nx_) = lbx;
+    ub_.head(nx_) = ubx;
   }
 
-  virtual std::vector<ocs2::vector_t> getBounds(const ocs2::vector_t& x, const ocs2::vector_t& u) override {
-    ocs2::vector_t lb, ubx, lbu, ubu;
-    if (lbx_.cols() != 0) {
-      lbx = lbx_ - x;
-    }
-    if (ubx_.cols() != 0) {
-      ubx = ubx_ - x;
-    }
-    if (lbu_.cols() != 0) {
-      lbu = lbu_ - u;
-    }
-    if (ubu_.cols() != 0) {
-      ubu = ubu_ - u;
-    }
-    return {lbx, ubx, lbu, ubu};
+  void setInputBounds(const ocs2::vector_t& lbu, const ocs2::vector_t& ubu) {
+    lb_.tail(nu_) = lbu;
+    ub_.tail(nu_) = ubu;
   }
 
-  virtual std::vector<ocs2::vector_t> getValue(const ocs2::vector_t& x, const ocs2::vector_t& u) override { return {x, u}; }
+  virtual Eigen::Matrix<int, Eigen::Dynamic, 1> getIndex() override {
+    Eigen::Matrix<int, Eigen::Dynamic, 1> idx(nx_ + nu_);
+    for (int i = 0; i < nx_; ++i) {
+      idx[i] = i;
+    }
+    for (int i = 0; i < nu_; ++i) {
+      idx[i + nx_] = i;
+    }
+    return idx;
+  }
 
-  virtual std::vector<ocs2::matrix_t> getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u) override {
-    return {ocs2::matrix_t::Identity(nx_, nx_), ocs2::matrix_t::Identity(nu_, nu_)};
+  virtual std::pair<ocs2::vector_t, ocs2::vector_t> getBounds(const ocs2::vector_t& x, const ocs2::vector_t& u) override {
+    const ocs2::vector_t value = getValue(x, u);
+    return std::pair(lb_ - value, ub_ - value);
+  };
+  virtual std::pair<ocs2::vector_t, ocs2::vector_t> getBounds(const ocs2::vector_t& x) override {
+    const ocs2::vector_t value = getValue(x);
+    return std::pair(lb_ - value, ub_ - value);
+  };
+
+  virtual ocs2::vector_t getValue(const ocs2::vector_t& x, const ocs2::vector_t& u) override { return (ocs2::vector_t(nx_ + nu_) << x, u).finished(); }
+  virtual ocs2::vector_t getValue(const ocs2::vector_t& x) override { return (ocs2::vector_t(nx_ + nu_) << x, ocs2::vector_t::Zero(nu_)).finished(); }
+
+  virtual std::pair<ocs2::matrix_t, ocs2::matrix_t> getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u) override {
+    return std::pair(ocs2::matrix_t::Identity(nx_, nx_), ocs2::matrix_t::Identity(nu_, nu_));
+  }
+  virtual std::pair<ocs2::matrix_t, ocs2::matrix_t> getFirstDerivatives(const ocs2::vector_t& x) override {
+    return std::pair(ocs2::matrix_t::Identity(nx_, nx_), ocs2::matrix_t{});
   }
 
   protected:
   int nx_;
   int nu_;
-
-  ocs2::vector_t lbx_;
-  ocs2::vector_t ubx_;
-  ocs2::vector_t lbu_;
-  ocs2::vector_t ubu_;
 };

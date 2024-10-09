@@ -28,6 +28,7 @@ DirectMultipleShooting::DirectMultipleShooting(YAML::Node config,
 
   costDerivatives_.reset(new CostDerivatives(horizon_));
   dynamicsDerivatives_.reset(new DynamicsDerivatives(horizon_));
+  boxConstraintsStruct_.reset(new BoxConstraintsStruct(horizon_));
 
   xtraj.resize(horizon_);
   utraj.resize(horizon_ - 1);
@@ -54,6 +55,7 @@ ocs2::scalar_t DirectMultipleShooting::calcCost() {
 
 void DirectMultipleShooting::setupProblem() {
   // #pragma omp parallel for num_threads(4)
+  std::pair<ocs2::vector_t, ocs2::vector_t> bound;
   for (int k = 0; k < horizon_ - 1; ++k) {
     // calc cost derivatives
     std::tie(costDerivatives_->lx[k], costDerivatives_->lu[k]) = cost_[k]->getFirstDerivatives(xtraj[k], utraj[k], xref[k]);
@@ -66,8 +68,19 @@ void DirectMultipleShooting::setupProblem() {
     hpipmInterface_->setDynamics(k, dynamicsDerivatives_->fx[k], dynamicsDerivatives_->fu[k]);
 
     // // calc constraint settings
-    // std::vector<ocs2::vector_t> bounds = constraint_->getBounds(xtraj[k], utraj[k]);
-    // hpipmInterface_->setBounds(bounds[0], bounds[1], boxConstraint_.idxbx, bounds[2], bounds[3], boxConstraint_.idxbu);
+    // Eigen::Matrix<int, Eigen::Dynamic, 1> idx;
+    // idx = constraint_[k]->getIndex();
+    // boxConstraintsStruct_->idxbx[k] = idx.head(nx_);
+    // boxConstraintsStruct_->idxbu[k] = idx.tail(nu_);
+    // bound = constraint_[k]->getBounds(xtraj[k], utraj[k]);
+    // std::cerr << bound.first.transpose() << std::endl;
+    // std::cerr << bound.second.transpose() << std::endl;
+    // boxConstraintsStruct_->lbx[k] = bound.first.head(nx_);
+    // boxConstraintsStruct_->ubx[k] = bound.first.tail(nu_);
+    // boxConstraintsStruct_->lbu[k] = bound.second.head(nx_);
+    // boxConstraintsStruct_->ubu[k] = bound.second.tail(nu_);
+    // hpipmInterface_->setBounds(k, boxConstraintsStruct_->lbx[k], boxConstraintsStruct_->ubx[k], boxConstraintsStruct_->idxbx[k], boxConstraintsStruct_->lbu[k],
+    //     boxConstraintsStruct_->ubu[k], boxConstraintsStruct_->idxbu[k]);
   }
   // calc terminal cost derivatives
   std::tie(costDerivatives_->lx[horizon_ - 1], costDerivatives_->lu[horizon_ - 1]) =
@@ -78,8 +91,18 @@ void DirectMultipleShooting::setupProblem() {
       costDerivatives_->lux[horizon_ - 1], costDerivatives_->luu[horizon_ - 1]);
 
   // // calc terminal constraint settings
-  // std::vector<ocs2::vector_t> bounds = constraint_->getBounds(xtraj[k], utraj[k]);
-  // hpipmInterface_->setBounds(horizon_ - 1, bounds[0], bounds[1], boxConstraint_.idxbx, bounds[2], bounds[3], boxConstraint_.idxbu);
+  // Eigen::Matrix<int, Eigen::Dynamic, 1> idx;
+  // idx = constraint_[horizon_ - 1]->getIndex();
+  // boxConstraintsStruct_->idxbx[horizon_ - 1] = idx.head(nx_);
+  // boxConstraintsStruct_->idxbu[horizon_ - 1] = idx.tail(nu_);
+  // bound = constraint_[horizon_ - 1]->getBounds(xtraj[horizon_ - 1]);
+  // boxConstraintsStruct_->lbx[horizon_ - 1] = bound.first.head(nx_);
+  // boxConstraintsStruct_->ubx[horizon_ - 1] = bound.first.tail(nu_);
+  // boxConstraintsStruct_->lbu[horizon_ - 1] = bound.second.head(nx_);
+  // boxConstraintsStruct_->ubu[horizon_ - 1] = bound.second.tail(nu_);
+  // hpipmInterface_->setBounds(horizon_ - 1, boxConstraintsStruct_->lbx[horizon_ - 1], boxConstraintsStruct_->ubx[horizon_ - 1],
+  //     boxConstraintsStruct_->idxbx[horizon_ - 1], boxConstraintsStruct_->lbu[horizon_ - 1], boxConstraintsStruct_->ubu[horizon_ - 1],
+  //     boxConstraintsStruct_->idxbu[horizon_ - 1]);
 
   hpipmInterface_->setBounds();
   hpipmInterface_->setPolytopicConstraints();

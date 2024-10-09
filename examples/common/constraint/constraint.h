@@ -19,10 +19,14 @@ class Constraint {
     ub_ = ub;
   }
 
-  virtual std::vector<ocs2::vector_t> getBounds(const ocs2::vector_t& x, const ocs2::vector_t& u) = 0;
+  virtual Eigen::Matrix<int, Eigen::Dynamic, 1> getIndex() = 0;
+  virtual std::pair<ocs2::vector_t, ocs2::vector_t> getBounds(const ocs2::vector_t& x, const ocs2::vector_t& u) { return std::pair(lb_, ub_); };
+  virtual std::pair<ocs2::vector_t, ocs2::vector_t> getBounds(const ocs2::vector_t& x) { return std::pair(lb_, ub_); };
 
-  virtual std::vector<ocs2::vector_t> getValue(const ocs2::vector_t& x, const ocs2::vector_t& u) = 0;
-  virtual std::vector<ocs2::matrix_t> getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u) = 0;
+  virtual ocs2::vector_t getValue(const ocs2::vector_t& x, const ocs2::vector_t& u) = 0;
+  virtual ocs2::vector_t getValue(const ocs2::vector_t& x) = 0;
+  virtual std::pair<ocs2::matrix_t, ocs2::matrix_t> getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u) = 0;
+  virtual std::pair<ocs2::matrix_t, ocs2::matrix_t> getFirstDerivatives(const ocs2::vector_t& x) = 0;
 
   protected:
   int constraint_num_;

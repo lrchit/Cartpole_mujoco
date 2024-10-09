@@ -36,8 +36,13 @@ class HpipmInterface {
 
   // box constraints
   void setBounds();
-  void setStateBoxConstraints(int stage, ocs2::vector_t& lbx, ocs2::vector_t& ubx, Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbx);
-  void setInputBoxConstraints(int stage, ocs2::vector_t& lbu, ocs2::vector_t& ubu, Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbu);
+  void setBounds(int stage,
+      ocs2::vector_t& lbx,
+      ocs2::vector_t& ubx,
+      Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbx,
+      ocs2::vector_t& lbu,
+      ocs2::vector_t& ubu,
+      Eigen::Matrix<int, Eigen::Dynamic, 1>& idxbu);
 
   // these are not support currently
   void setPolytopicConstraints();

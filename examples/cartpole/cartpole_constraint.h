@@ -10,11 +10,12 @@ class Cartpole_Constraint : public BoxConstraint {
 
   Cartpole_Constraint(YAML::Node config) : BoxConstraint(4, 1) {
     ocs2::vector_t lbx(nx), ubx(nx), lbu(nu), ubu(nu);
-    lbx = ocs2::vector_t{};
-    ubx = ocs2::vector_t{};
+    lbx << -100, -100, -100, -100;
+    ubx << 100, 100, 100, 100;
     lbu << -100;
     ubu << 100;
-    setBounds(lbx, ubx, lbu, ubu);
+    setStateBounds(lbx, ubx);
+    setInputBounds(lbu, ubu);
   }
   ~Cartpole_Constraint() = default;
 

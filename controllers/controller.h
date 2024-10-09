@@ -40,6 +40,26 @@ struct DynamicsDerivatives {
   std::vector<ocs2::vector_t> b;
 };
 
+struct BoxConstraintsStruct {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  BoxConstraintsStruct(int horizon) {
+    lbx.resize(horizon);
+    ubx.resize(horizon);
+    lbu.resize(horizon);
+    ubu.resize(horizon);
+    idxbx.resize(horizon);
+    idxbu.resize(horizon);
+  }
+
+  std::vector<ocs2::vector_t> lbx;
+  std::vector<ocs2::vector_t> ubx;
+  std::vector<ocs2::vector_t> lbu;
+  std::vector<ocs2::vector_t> ubu;
+  std::vector<Eigen::Matrix<int, Eigen::Dynamic, 1>> idxbx;
+  std::vector<Eigen::Matrix<int, Eigen::Dynamic, 1>> idxbu;
+};
+
 class ControllerBase {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   public:

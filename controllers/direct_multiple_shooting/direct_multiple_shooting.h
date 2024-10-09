@@ -31,9 +31,7 @@ class DirectMultipleShooting : public ControllerBase {
   ocs2::matrix_t K_;
   std::unique_ptr<CostDerivatives> costDerivatives_;
   std::unique_ptr<DynamicsDerivatives> dynamicsDerivatives_;
-
-  std::vector<ocs2::vector_t> idxbx_;
-  std::vector<ocs2::vector_t> idxbu_;
+  std::unique_ptr<BoxConstraintsStruct> boxConstraintsStruct_;
 
   std::shared_ptr<HpipmInterface> hpipmInterface_;
   std::vector<std::shared_ptr<Cost>> cost_;
