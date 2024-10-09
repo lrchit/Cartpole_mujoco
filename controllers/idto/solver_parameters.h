@@ -67,32 +67,32 @@ struct SolverParameters {
 
   // initialize
   SolverParameters(YAML::Node config) {
-    convergence_tolerances.rel_cost_reduction = config["tolerances"]["rel_cost_reduction"].as<double>();
-    convergence_tolerances.abs_cost_reduction = config["tolerances"]["abs_cost_reduction"].as<double>();
-    convergence_tolerances.rel_gradient_along_dq = config["tolerances"]["rel_gradient_along_dq"].as<double>();
-    convergence_tolerances.abs_gradient_along_dq = config["tolerances"]["abs_gradient_along_dq"].as<double>();
-    convergence_tolerances.rel_state_change = config["tolerances"]["rel_state_change"].as<double>();
-    convergence_tolerances.abs_state_change = config["tolerances"]["abs_state_change"].as<double>();
-    equality_constraints = config["equality_constraints"].as<bool>();
-    scaling = config["scaling"].as<bool>();
-    method = static_cast<SolverMethod>(config["method"].as<int>());
-    linear_solver = static_cast<SolverParameters::LinearSolverType>(config["linear_solver"].as<int>());
-    gradients_method = static_cast<GradientsMethod>(config["gradients_method"].as<int>());
-    num_threads = config["num_threads"].as<int>();
-    contact_stiffness = config["contact_stiffness"].as<double>();
-    dissipation_velocity = config["dissipation_velocity"].as<double>();
-    smoothing_factor = config["smoothing_factor"].as<double>();
-    friction_coefficient = config["friction_coefficient"].as<double>();
-    stiction_velocity = config["stiction_velocity"].as<double>();
-    k_spring = config["k_spring"].as<double>();
-    d_damper = config["d_damper"].as<double>();
-    damper_smooth = config["damper_smooth"].as<double>();
-    spring_smooth = config["spring_smooth"].as<double>();
-    zOffset = config["zOffset"].as<double>();
-    which_contact_model = config["which_contact_model"].as<double>();
-    recompileFootSlipAndClearanceCost = config["recompileFootSlipAndClearanceCost"].as<bool>();
-    cf = config["cf"].as<double>();
-    c1 = config["c1"].as<double>();
+    convergence_tolerances.rel_cost_reduction = config["idto"]["tolerances"]["rel_cost_reduction"].as<double>();
+    convergence_tolerances.abs_cost_reduction = config["idto"]["tolerances"]["abs_cost_reduction"].as<double>();
+    convergence_tolerances.rel_gradient_along_dq = config["idto"]["tolerances"]["rel_gradient_along_dq"].as<double>();
+    convergence_tolerances.abs_gradient_along_dq = config["idto"]["tolerances"]["abs_gradient_along_dq"].as<double>();
+    convergence_tolerances.rel_state_change = config["idto"]["tolerances"]["rel_state_change"].as<double>();
+    convergence_tolerances.abs_state_change = config["idto"]["tolerances"]["abs_state_change"].as<double>();
+    equality_constraints = config["idto"]["equality_constraints"].as<bool>();
+    scaling = config["idto"]["scaling"].as<bool>();
+    method = static_cast<SolverMethod>(config["idto"]["method"].as<int>());
+    linear_solver = static_cast<SolverParameters::LinearSolverType>(config["idto"]["linear_solver"].as<int>());
+    gradients_method = static_cast<GradientsMethod>(config["idto"]["gradients_method"].as<int>());
+    num_threads = config["idto"]["num_threads"].as<int>();
+    contact_stiffness = config["idto"]["contact_stiffness"].as<double>();
+    dissipation_velocity = config["idto"]["dissipation_velocity"].as<double>();
+    smoothing_factor = config["idto"]["smoothing_factor"].as<double>();
+    friction_coefficient = config["idto"]["friction_coefficient"].as<double>();
+    stiction_velocity = config["idto"]["stiction_velocity"].as<double>();
+    k_spring = config["idto"]["k_spring"].as<double>();
+    d_damper = config["idto"]["d_damper"].as<double>();
+    damper_smooth = config["idto"]["damper_smooth"].as<double>();
+    spring_smooth = config["idto"]["spring_smooth"].as<double>();
+    zOffset = config["idto"]["zOffset"].as<double>();
+    which_contact_model = config["idto"]["which_contact_model"].as<double>();
+    recompileFootSlipAndClearanceCost = config["idto"]["recompileFootSlipAndClearanceCost"].as<bool>();
+    cf = config["idto"]["cf"].as<double>();
+    c1 = config["idto"]["c1"].as<double>();
   }
 
   // Flag for whether we should check for convergence, along with default

@@ -13,7 +13,11 @@
 class DirectMultipleShooting : public ControllerBase {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  DirectMultipleShooting(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost, std::shared_ptr<Constraint> constraint);
+  DirectMultipleShooting(YAML::Node config,
+      ocs2::matrix_t K,
+      std::shared_ptr<Dynamics> dynamics_model,
+      std::shared_ptr<Cost> cost,
+      std::shared_ptr<Constraint> constraint = nullptr);
   ~DirectMultipleShooting() {}
 
   virtual ocs2::matrix_t getFeedBackMatrix() override { return K_; };
@@ -27,6 +31,7 @@ class DirectMultipleShooting : public ControllerBase {
   int nu_;
   int horizon_;
   int max_iter_;
+  bool first_run_;
   ocs2::scalar_t tolerance_;
   ocs2::matrix_t K_;
   std::unique_ptr<CostDerivatives> costDerivatives_;

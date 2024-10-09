@@ -2,15 +2,17 @@
 #include <direct_multiple_shooting.h>
 
 DirectMultipleShooting::DirectMultipleShooting(YAML::Node config,
+    ocs2::matrix_t K,
     std::shared_ptr<Dynamics> dynamics_model,
     std::shared_ptr<Cost> cost,
     std::shared_ptr<Constraint> constraint) {
   nx_ = config["nx"].as<int>();
   nu_ = config["nu"].as<int>();
-  horizon_ = config["horizon"].as<int>() + 1;
+  horizon_ = config["mpc"]["horizon"].as<int>() + 1;
   max_iter_ = config["dms"]["max_iteration"].as<int>();
   tolerance_ = config["dms"]["tolerance"].as<double>();
   hpipmInterface_.reset(new HpipmInterface(config));
+  first_run_ = true;
   // dynamics and cost
   for (int i = 0; i < horizon_; ++i) {
     dynamics_model_.push_back(dynamics_model);
@@ -18,13 +20,7 @@ DirectMultipleShooting::DirectMultipleShooting(YAML::Node config,
     constraint_.push_back(constraint);
   }
 
-  K_.setZero(nu_, nx_);
-  std::vector<double> K = config["K"].as<std::vector<double>>();
-  for (int i = 0; i < nu_; ++i) {
-    for (int j = 0; j < nx_; ++j) {
-      K_(i, j) = K[i * nx_ + nx_];
-    }
-  }
+  K_ = K;
 
   costDerivatives_.reset(new CostDerivatives(horizon_));
   dynamicsDerivatives_.reset(new DynamicsDerivatives(horizon_));
@@ -114,16 +110,14 @@ void DirectMultipleShooting::launch_controller(const ocs2::vector_t& xcur, const
   xref = x_ref;
   xtraj[0] = xcur;
   for (int k = 0; k < (horizon_ - 1); ++k) {
-    utraj[k] = dynamics_model_[k]->getQuasiStaticInput(xtraj[k]);
-    // utraj[k] += K_guess * (x_ref[k + 1] - xtraj[k]);
-    xtraj[k + 1] = dynamics_model_[k]->getValue(xtraj[k], utraj[k]);
+    std::tie(xtraj[k + 1], utraj[k]) = dynamics_model_[k]->solveQuasiStaticProblem(xtraj[k]);
   }
 
   // start nlp loop
   ocs2::scalar_t cost = 1.0e+9;
   ocs2::scalar_t new_cost = calcCost();
   int counter = 0;
-  while ((abs(cost - new_cost) > tolerance_) && (counter < max_iter_)) {
+  while ((abs(cost - new_cost) > tolerance_) && ((counter < max_iter_) || first_run_)) {
     cost = new_cost;
 
     // calc derivatives
@@ -141,10 +135,23 @@ void DirectMultipleShooting::launch_controller(const ocs2::vector_t& xcur, const
 
     // update cost
     new_cost = calcCost();
+    // std::cerr << "cost  = " << cost << std::endl;
+    // std::cerr << "new_cost  = " << new_cost << std::endl;
     if (new_cost > cost) {
-      break;
+      std::cerr << "dms solver failed!" << std::endl;
+      exit(0);
     }
 
     counter++;
   }
+  first_run_ = false;
+  // // std::cerr << "counter = " << counter << std::endl;
+  // for (int k = 0; k < horizon_ - 1; ++k) {
+  //   auto delta_xtraj = hpipmInterface_->get_delta_xtraj();
+  //   std::cerr << "delta_xtraj = " << delta_xtraj[k].head(18).transpose() << std::endl;
+  //   std::cerr << "xtraj = " << xtraj[k].head(6).transpose() << std::endl;
+  //   std::cerr << "utraj = " << utraj[k].transpose() << std::endl;
+  //   dynamics_model_[k]->getValue(xtraj[k], utraj[k]);
+  // }
+  // // exit(0);
 }

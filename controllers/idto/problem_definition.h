@@ -22,7 +22,7 @@ namespace optimizer {
 struct ProblemDefinition {
   // initialize
   ProblemDefinition(YAML::Node config) {
-    num_steps = config["horizon"].as<int>();
+    num_steps = config["mpc"]["horizon"].as<int>();
     q_init.setZero(18);
     v_init.setZero(18);
     Qq.setZero(18, 18);
@@ -33,13 +33,13 @@ struct ProblemDefinition {
 
     std::vector<double> q_init_vector = config["q_init"].as<std::vector<double>>();
     std::vector<double> v_init_vector = config["v_init"].as<std::vector<double>>();
-    std::vector<double> Qq_vector = config["Qq"].as<std::vector<double>>();
-    std::vector<double> Qv_vector = config["Qv"].as<std::vector<double>>();
-    std::vector<double> Qf_q_vector = config["Qfq"].as<std::vector<double>>();
-    std::vector<double> Qf_v_vector = config["Qfv"].as<std::vector<double>>();
-    std::vector<double> R_vector = config["R"].as<std::vector<double>>();
-    int gaitHeuristic = config["gaitHeuristic"].as<int>();
-    double symmetricControlCostCoefficient = config["symmetricControlCostCoefficient"].as<double>();
+    std::vector<double> Qq_vector = config["idto"]["Qq"].as<std::vector<double>>();
+    std::vector<double> Qv_vector = config["idto"]["Qv"].as<std::vector<double>>();
+    std::vector<double> Qf_q_vector = config["idto"]["Qfq"].as<std::vector<double>>();
+    std::vector<double> Qf_v_vector = config["idto"]["Qfv"].as<std::vector<double>>();
+    std::vector<double> R_vector = config["idto"]["R"].as<std::vector<double>>();
+    int gaitHeuristic = config["idto"]["gaitHeuristic"].as<int>();
+    double symmetricControlCostCoefficient = config["idto"]["symmetricControlCostCoefficient"].as<double>();
     for (int i = 0; i < 18; ++i) {
       q_init[i] = q_init_vector[i];
       v_init[i] = v_init_vector[i];

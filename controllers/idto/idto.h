@@ -16,22 +16,20 @@ namespace optimizer {
 class idto : public ControllerBase {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   public:
-  idto(YAML::Node config, const pinocchio::ModelTpl<double>& model, const pinocchio::DataTpl<double>& data, const std::vector<pinocchio::FrameIndex> footId)
+  idto(YAML::Node config,
+      ocs2::matrix_t K,
+      const pinocchio::ModelTpl<double>& model,
+      const pinocchio::DataTpl<double>& data,
+      const std::vector<pinocchio::FrameIndex> footId)
       : probParam_(ProblemDefinition(config)), solverParam_(SolverParameters(config)), footId_(footId), model_(model), data_(data) {
     nq_ = model.nq;
     nv_ = model.nv;
     nu_ = nv_ - 6;
 
-    K_.setZero(nu_, nq_ + nv_);
-    std::vector<double> Kp = config["Kp"].as<std::vector<double>>();
-    std::vector<double> Kd = config["Kd"].as<std::vector<double>>();
-    for (int i = 0; i < nu_; ++i) {
-      K_.middleCols(6, nu_).diagonal()[i] = Kp[i];
-      K_.middleCols(6 + nq_, nu_).diagonal()[i] = Kd[i];
-    }
+    K_ = K;
 
-    const double time_step = config["dt"].as<double>();
-    solver_max_iter_ = config["mpc_iters"].as<int>();
+    const double time_step = config["mpc"]["dt"].as<double>();
+    solver_max_iter_ = config["idto"]["mpc_iters"].as<int>();
 
     // initialize
     q_guess_ = std::vector<ocs2::vector_t>(probParam_.num_steps + 1, ocs2::vector_t::Zero(nq_));

@@ -4,7 +4,7 @@
 HpipmInterface::HpipmInterface(YAML::Node config) {
   nx_ = config["nx"].as<int>();
   nu_ = config["nu"].as<int>();
-  horizon_ = config["horizon"].as<int>() + 1;
+  horizon_ = config["mpc"]["horizon"].as<int>() + 1;
 
   nx = new int[horizon_];    // number of states
   nu = new int[horizon_];    // number of inputs
@@ -174,7 +174,7 @@ void HpipmInterface::solve() {
   double tol_ineq = 1.0e-4;
   double tol_comp = 1.0e-4;
   double reg_prim = 1.0e-12;
-  int warm_start = 0;
+  int warm_start = 1;
   int pred_corr = 1;
   int ric_alg = 0;
   int split_step = 1;
@@ -210,7 +210,7 @@ void HpipmInterface::solve() {
 
   // extract and print solution
   for (int k = 0; k < horizon_ - 1; k++) {
-    d_ocp_qp_sol_get_x(k, &hpipmWrappers->qp_sol, delta_xtraj[k + 1].data());
+    d_ocp_qp_sol_get_x(k + 1, &hpipmWrappers->qp_sol, delta_xtraj[k + 1].data());
     d_ocp_qp_sol_get_u(k, &hpipmWrappers->qp_sol, delta_utraj[k].data());
   }
 }

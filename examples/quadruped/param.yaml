@@ -25,112 +25,187 @@ v_init : [0, 0, 0,
           0, 0, 0,
           0, 0, 0]
 
-# Cost Weights
-Qq : [50, 50, 20, 
-      20, 20, 20,
-      5, 1, 1,
-      5, 1, 1,
-      5, 1, 1,
-      5, 1, 1]
+idto:
+  # Cost Weights
+  Qq : [50, 50, 20, 
+        20, 20, 20,
+        5, 1, 1,
+        5, 1, 1,
+        5, 1, 1,
+        5, 1, 1]
 
-Qv : [1, 1, 1,
-      1, 1, 1, 
-      0.1, 0.05, 0.025,
-      0.1, 0.05, 0.025,
-      0.1, 0.05, 0.025,
-      0.1, 0.05, 0.025]
+  Qv : [1, 1, 1,
+        1, 1, 1, 
+        0.1, 0.05, 0.025,
+        0.1, 0.05, 0.025,
+        0.1, 0.05, 0.025,
+        0.1, 0.05, 0.025]
 
-R : [10000, 10000, 10000,
-     10000, 10000, 10000, 
-     0.001, 0.0005, 0.001,
-     0.001, 0.0005, 0.001,
-     0.001, 0.0005, 0.001,
-     0.001, 0.0005, 0.001]
+  R : [10000, 10000, 10000,
+      10000, 10000, 10000, 
+      0.001, 0.0005, 0.001,
+      0.001, 0.0005, 0.001,
+      0.001, 0.0005, 0.001,
+      0.001, 0.0005, 0.001]
 
-Qfq : [50, 50, 20, 
-      20, 20, 20,
-      5, 1, 1,
-      5, 1, 1,
-      5, 1, 1,
-      5, 1, 1]
+  Qfq : [50, 50, 20, 
+        20, 20, 20,
+        5, 1, 1,
+        5, 1, 1,
+        5, 1, 1,
+        5, 1, 1]
 
-Qfv : [1, 1, 1,
-      1, 1, 1, 
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1]
+  Qfv : [1, 1, 1,
+        1, 1, 1, 
+        0.1, 0.1, 0.1,
+        0.1, 0.1, 0.1,
+        0.1, 0.1, 0.1,
+        0.1, 0.1, 0.1]
 
-# Solver parameters
-method : 1    # solver method, {linesearch, trust_region}
-scaling : true
-equality_constraints : false
-linear_solver : 1 # linear solver method, {kDenseLdlt, kPentaDiagonalLu}
-num_threads : 4
+  # Solver parameters
+  method : 1    # solver method, {linesearch, trust_region}
+  scaling : true
+  equality_constraints : false
+  linear_solver : 1 # linear solver method, {kDenseLdlt, kPentaDiagonalLu}
+  num_threads : 4
 
-# Convergence thresholds
-tolerances:
-  rel_cost_reduction: 0
-  abs_cost_reduction: 0
-  rel_gradient_along_dq: 0
-  abs_gradient_along_dq: 0
-  rel_state_change: 0
-  abs_state_change: 0
+  # Convergence thresholds
+  tolerances:
+    rel_cost_reduction: 0
+    abs_cost_reduction: 0
+    rel_gradient_along_dq: 0
+    abs_gradient_along_dq: 0
+    rel_state_change: 0
+    abs_state_change: 0
 
-# Method used to compute gradients of inverse dynamics, one of
-gradients_method: 0    # {forward_differences, central_differences, central_differences4, autodiff}
+  # Method used to compute gradients of inverse dynamics, one of
+  gradients_method: 0    # {forward_differences, central_differences, central_differences4, autodiff}
 
-# Contact model parameters. 
-contact_stiffness : 2000    # normal force stiffness, in N/m
-dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
+  # Contact model parameters. 
+  contact_stiffness : 2000    # normal force stiffness, in N/m
+  dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
-# Amount of smoothing (and therefore force at a distance) to apply when
-# computing normal forces. This is equivalent to an analytical version of
-# randomized smoothing, assuming that signed distances are drawn from a logistic
-# distirbution with the smoothing factor as the scale parameter. Higher values
-# mean more smoothing and more force at a distance. 
-smoothing_factor : 0.01
+  # Amount of smoothing (and therefore force at a distance) to apply when
+  # computing normal forces. This is equivalent to an analytical version of
+  # randomized smoothing, assuming that signed distances are drawn from a logistic
+  # distirbution with the smoothing factor as the scale parameter. Higher values
+  # mean more smoothing and more force at a distance. 
+  smoothing_factor : 0.01
 
-# Friction
-friction_coefficient : 1.0  # Coefficient of friction.
-stiction_velocity: 0.5      # Regularization velocity, in m/s.
+  # Friction
+  friction_coefficient : 1.0  # Coefficient of friction.
+  stiction_velocity: 0.5      # Regularization velocity, in m/s.
 
-#gait heuristic
-gaitHeuristic: 3  # 0 for trotting, 1 for bounding, 2 for pacing, 3 for free
-# Symmetric Control Cost
-symmetricControlCostCoefficient: 0.01
+  #gait heuristic
+  gaitHeuristic: 3  # 0 for trotting, 1 for bounding, 2 for pacing, 3 for free
+  # Symmetric Control Cost
+  symmetricControlCostCoefficient: 0.01
 
-k_spring : 100
-d_damper : 100
-damper_smooth : 100
-spring_smooth : 100
-zOffset : -0.02
+  k_spring : 100
+  d_damper : 100
+  damper_smooth : 100
+  spring_smooth : 100
+  zOffset : -0.02
 
-which_contact_model : 1  # 0 = soft; 1 = spring-damper(0 behaves better at moving, 1 is better at angular actions).
+  which_contact_model : 1  # 0 = soft; 1 = spring-damper(0 behaves better at moving, 1 is better at angular actions).
 
-# foot slip and clearance cost
-recompileFootSlipAndClearanceCost: false
-cf: 1.0e+3
-c1: -30
+  # foot slip and clearance cost
+  recompileFootSlipAndClearanceCost: false
+  cf: 1.0e+3
+  c1: -30
 
-demo_vel_x: 0.3
+  Kp : [20, 20, 20,
+        20, 20, 20,
+        20, 20, 20,
+        20, 20, 20]
+  Kd : [2, 2, 2,
+        2, 2, 2,
+        2, 2, 2,
+        2, 2, 2]
 
-# mpc settings
-dt: 0.02
-horizon: 50
-mpcFrequency: 60
-mrtFrequency: 500
-useFeedbackPolicy: true
+  mpc_iters: 1
 
-mpc_iters : 1
-Kp : [20, 20, 20,
-      20, 20, 20,
-      20, 20, 20,
-      20, 20, 20]
-Kd : [2, 2, 2,
-      2, 2, 2,
-      2, 2, 2,
-      2, 2, 2]
+dms:
+  # cost
+  Q: [100, 100, 100,  # body pos
+    100, 100, 100,    # body zyx angle
+    30, 30, 30,       # joint pos
+    30, 30, 30,
+    30, 30, 30,
+    30, 30, 30,       
+    10, 10, 10,       # body vel
+    10, 10, 10,
+    5, 5, 5,          # joint vel
+    5, 5, 5,
+    5, 5, 5,
+    5, 5, 5]
+
+  Qn: [100, 100, 100,  # body pos
+    100, 100, 100,    # body zyx angle
+    30, 30, 30,       # joint pos
+    30, 30, 30,
+    30, 30, 30,
+    30, 30, 30,       
+    10, 10, 10,       # body vel
+    10, 10, 10,
+    5, 5, 5,          # joint vel
+    5, 5, 5,
+    5, 5, 5,
+    5, 5, 5]
+
+  R: [0.001, 0.001, 0.001, 
+      0.001, 0.001, 0.001, 
+      0.001, 0.001, 0.001, 
+      0.001, 0.001, 0.001]
+
+  # feedback gain
+  Kp: [50, 50, 50,
+        50, 50, 50,
+        50, 50, 50,
+        50, 50, 50]
+  Kd: [2, 2, 2,
+        2, 2, 2,
+        2, 2, 2,
+        2, 2, 2]
+
+  contactModelParam:
+    spring_k: 100
+    damper_d: 200
+    alpha: 100
+    alpha_n: 100
+    zOffset: -0.02
+    smoothing: 1
+
+  # cppad code gen
+  recompileCppAdLibrary: false
+
+  # dms convergence
+  max_iteration: 1
+  tolerance: 1.0e-2
+
+  # hpipm settings
+  use_partial_condensed: true
+
+  # verbose
+  verbose_cal_time: true
+
+use_which_solver: 2  # 1 for idto, 2 for dms
+
+# # idto mpc settings
+# mpc:
+#   dt: 0.02
+#   horizon: 50
+#   mpcFrequency: 60
+#   mrtFrequency: 500
+#   useFeedbackPolicy: true
+
+# # dms mpc settings
+mpc:
+  dt: 0.02
+  horizon: 50
+  mpcFrequency: 50
+  mrtFrequency: 500
+  useFeedbackPolicy: true
 
 # estimate
 use_cheater_mode              :  true
@@ -142,3 +217,5 @@ foot_sensor_noise_position    :  0.001
 foot_sensor_noise_velocity    :  0.1
 imu_process_noise_position    :  0.02
 imu_process_noise_velocity    :  0.02
+
+demo_vel_x: 0.0

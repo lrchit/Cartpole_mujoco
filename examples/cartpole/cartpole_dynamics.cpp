@@ -9,7 +9,7 @@ Cartpole_Dynamics::Cartpole_Dynamics(YAML::Node config) {
   nx = 4;
   nu = 1;
 
-  dt = config["dt"].as<double>();
+  dt = config["mpc"]["dt"].as<double>();
 
   auto systemFlowMapFunc = [&](const ocs2::ad_vector_t& x, ocs2::ad_vector_t& y) {
     ocs2::ad_vector_t state = x.head(4);

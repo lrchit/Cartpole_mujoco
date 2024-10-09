@@ -10,7 +10,7 @@ class Example {
     YAML::Node config = YAML::LoadFile(yaml_name);
     nx = config["nx"].as<int>();
     nu = config["nu"].as<int>();
-    Nt = config["horizon"].as<int>() + 1;
+    Nt = config["mpc"]["horizon"].as<int>() + 1;
     xcur.setZero(nx);
     xtarget.setZero(nx);
   }

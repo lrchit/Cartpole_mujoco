@@ -1,7 +1,7 @@
 #include <cartpole_cost.h>
 
 Cartpole_Cost::Cartpole_Cost(YAML::Node config) {
-  ocs2::scalar_t dt = config["dt"].as<double>();
+  ocs2::scalar_t dt = config["mpc"]["dt"].as<double>();
 
   // Initialize weight matrix
   Q_.setZero();

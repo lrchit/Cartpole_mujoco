@@ -1,0 +1,77 @@
+
+nx: 36
+nu: 12
+nq: 18
+nv: 18
+
+# mpc settings
+mpc:
+  dt: 0.02
+  horizon: 50
+  mpcFrequency: 50
+  mrtFrequency: 500
+  useFeedbackPolicy: false
+
+dms:
+  # dms convergence
+  max_iteration: 1000
+  tolerance: 1.0e-2
+
+  # hpipm settings
+  use_partial_condensed: true
+
+  # verbose
+  verbose_cal_time: true
+
+  # cost
+  Q: [500, 500, 500,  # body pos
+    100, 100, 100,    # body zyx angle
+    30, 30, 30,       # joint pos
+    30, 30, 30,
+    30, 30, 30,
+    30, 30, 30,       
+    10, 10, 10,       # body vel
+    10, 10, 10,
+    5, 5, 5,          # joint vel
+    5, 5, 5,
+    5, 5, 5,
+    5, 5, 5]
+    
+  Qn: [500, 500, 500,  # body pos
+    100, 100, 100,    # body zyx angle
+    30, 30, 30,       # joint pos
+    30, 30, 30,
+    30, 30, 30,
+    30, 30, 30,       
+    10, 10, 10,       # body vel
+    10, 10, 10,
+    5, 5, 5,          # joint vel
+    5, 5, 5,
+    5, 5, 5,
+    5, 5, 5]
+
+  R: [0.001, 0.001, 0.001, 
+      0.001, 0.001, 0.001, 
+      0.001, 0.001, 0.001, 
+      0.001, 0.001, 0.001]
+
+  # feedback gain
+  Kp: [20, 20, 20,
+        20, 20, 20,
+        20, 20, 20,
+        20, 20, 20]
+  Kd: [2, 2, 2,
+        2, 2, 2,
+        2, 2, 2,
+        2, 2, 2]
+
+  contactModelParam:
+    spring_k: 100
+    damper_d: 100
+    alpha: 100
+    alpha_n: 100
+    zOffset: -0.02
+    smoothing: 1
+
+  # cppad code gen
+  recompileCppAdLibrary: false

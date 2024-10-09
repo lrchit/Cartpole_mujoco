@@ -20,6 +20,12 @@ class Cartpole_Example : public Example {
     std::shared_ptr<Cartpole_Cost> cartpole_cost = std::make_shared<Cartpole_Cost>(config);
     std::shared_ptr<Cartpole_Constraint> cartpole_constraint = std::make_shared<Cartpole_Constraint>(config);
 
+    // mpc setting
+    std::vector<double> K = config["dms"]["K"].as<std::vector<double>>();
+    ocs2::matrix_t K_(nu, nx);
+    for (int i = 0; i < nx; ++i) {
+      K_(0, i) = K[i];
+    }
     const int use_which_solver = config["use_which_solver"].as<int>();
     switch (use_which_solver) {
       case 1:  // iLQR
@@ -27,7 +33,7 @@ class Cartpole_Example : public Example {
         mpc.reset(new MpcController(config, std::move(solver)));
         break;
       case 2:  // direct multiple shooting
-        solver.reset(new DirectMultipleShooting(config, cartpole_dynamics, cartpole_cost, cartpole_constraint));
+        solver.reset(new DirectMultipleShooting(config, K_, cartpole_dynamics, cartpole_cost, cartpole_constraint));
         mpc.reset(new MpcController(config, std::move(solver)));
         break;
       default:

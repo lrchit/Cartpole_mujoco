@@ -30,14 +30,13 @@ initial_state:
 
 use_which_solver: 2   # 1 for iLQR, 2 for dms
 
-K: [0, 0, 0, 0]
-
 # mpc settings
-dt: 0.005
-horizon: 100
-mpcFrequency: 500
-mrtFrequency: 500
-useFeedbackPolicy: false
+mpc:
+  dt: 0.005
+  horizon: 100
+  mpcFrequency: 500
+  mrtFrequency: 500
+  useFeedbackPolicy: false
 
 # iLQR settings
 iLQR:
@@ -62,3 +61,6 @@ dms:
 
   # verbose
   verbose_cal_time: true
+
+  # feedback gain
+  K: [0, 0, 0, 0]

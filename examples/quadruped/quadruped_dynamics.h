@@ -23,7 +23,7 @@ class Quadruped_Dynamics : public Dynamics {
   virtual ocs2::vector_t getValue(const ocs2::vector_t& x, const ocs2::vector_t& u) override;
   virtual std::pair<ocs2::matrix_t, ocs2::matrix_t> getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u) override;
 
-  virtual ocs2::vector_t getQuasiStaticInput(const ocs2::vector_t& x) override;
+  virtual std::pair<ocs2::vector_t, ocs2::vector_t> solveQuasiStaticProblem(const ocs2::vector_t& x) override;
 
   private:
   // discrete

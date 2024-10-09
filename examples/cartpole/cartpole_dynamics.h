@@ -18,7 +18,9 @@ class Cartpole_Dynamics : public Dynamics {
   virtual ocs2::vector_t getValue(const ocs2::vector_t& x, const ocs2::vector_t& u) override;
   virtual std::pair<ocs2::matrix_t, ocs2::matrix_t> getFirstDerivatives(const ocs2::vector_t& x, const ocs2::vector_t& u) override;
 
-  virtual ocs2::vector_t getQuasiStaticInput(const ocs2::vector_t& x) override { return ocs2::vector_t::Zero(nu); }
+  virtual std::pair<ocs2::vector_t, ocs2::vector_t> solveQuasiStaticProblem(const ocs2::vector_t& x) override {
+    return std::pair(getValue(x, ocs2::vector_t::Zero(nu).eval()), ocs2::vector_t::Zero(nu));
+  }
 
   private:
   // dynamics

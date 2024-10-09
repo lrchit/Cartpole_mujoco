@@ -158,6 +158,20 @@ target_link_libraries(main
 #   shared_lib
 # )
 
+add_executable(test_dms test/testMultipleShooting.cpp
+  ${MPC_SRC}
+  ${DMS_SRC}
+  ${AUTO_DIFF_SRC}
+  ${COMMON_SRC}
+  ${COST_SRC}
+  ${DYNAMICS_SRC}
+  ${CONSTRAINT_SRC}
+  ${QUADRUPED_SRC}
+)
+target_link_libraries(test_dms
+  shared_lib
+)
+
 
 
 

@@ -1,112 +1,114 @@
 
-# Initial state
-q_init : [ 0.0, 0.0, 0.3,        # base position
-           0.0, 0.0, 0.0,        # base orientation
-           0.0, 0.72, -1.44,
-          -0.0, 0.72, -1.44,
-           0.0, 0.72, -1.44,
-          -0.0, 0.72, -1.44]
+idto:
+      # Initial state
+      q_init : [ 0.0, 0.0, 0.3,        # base position
+            0.0, 0.0, 0.0,        # base orientation
+            0.0, 0.72, -1.44,
+            -0.0, 0.72, -1.44,
+            0.0, 0.72, -1.44,
+            -0.0, 0.72, -1.44]
 
-v_init : [0, 0, 0,
-          0, 0, 0, 
-          0, 0, 0,
-          0, 0, 0,
-          0, 0, 0,
-          0, 0, 0]
+      v_init : [0, 0, 0,
+            0, 0, 0, 
+            0, 0, 0,
+            0, 0, 0,
+            0, 0, 0,
+            0, 0, 0]
 
-# Cost Weights
-Qq : [1, 1, 1, 
-      10, 10, 10,
-      0, 0, 0,
-      0, 0, 0,
-      0, 0, 0,
-      0, 0, 0]
+      # Cost Weights
+      Qq : [1, 1, 1, 
+            10, 10, 10,
+            0, 0, 0,
+            0, 0, 0,
+            0, 0, 0,
+            0, 0, 0]
 
-Qv : [1, 1, 1,
-      1, 1, 1, 
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1]
+      Qv : [1, 1, 1,
+            1, 1, 1, 
+            0.1, 0.1, 0.1,
+            0.1, 0.1, 0.1,
+            0.1, 0.1, 0.1,
+            0.1, 0.1, 0.1]
 
-R : [100, 100, 100,
-     100, 100, 100, 
-     0.01, 0.01, 0.01,
-     0.01, 0.01, 0.01,
-     0.01, 0.01, 0.01,
-     0.01, 0.01, 0.01]
+      R : [100, 100, 100,
+      100, 100, 100, 
+      0.01, 0.01, 0.01,
+      0.01, 0.01, 0.01,
+      0.01, 0.01, 0.01,
+      0.01, 0.01, 0.01]
 
-Qfq : [10, 10, 10, 
-      10, 10, 10,
-      1, 1, 1,
-      1, 1, 1,
-      1, 1, 1,
-      1, 1, 1]
+      Qfq : [10, 10, 10, 
+            10, 10, 10,
+            1, 1, 1,
+            1, 1, 1,
+            1, 1, 1,
+            1, 1, 1]
 
-Qfv : [1, 1, 1,
-      1, 1, 1, 
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1]
+      Qfv : [1, 1, 1,
+            1, 1, 1, 
+            0.1, 0.1, 0.1,
+            0.1, 0.1, 0.1,
+            0.1, 0.1, 0.1,
+            0.1, 0.1, 0.1]
 
-# Problem definition parameters
-dt : 0.05        # Discretization timestep (seconds)
-horizon : 20     # number of timesteps
+      # Solver parameters
+      method : 1    # solver method, {linesearch, trust_region}
+      scaling : true
+      equality_constraints : false
+      linear_solver : 1 # linear solver method, {kDenseLdlt, kPentaDiagonalLu}
+      num_threads : 6
 
-# Solver parameters
-method : 1    # solver method, {linesearch, trust_region}
-scaling : true
-equality_constraints : false
-linear_solver : 1 # linear solver method, {kDenseLdlt, kPentaDiagonalLu}
-num_threads : 6
+      # Convergence thresholds
+      tolerances:
+      rel_cost_reduction: 0
+      abs_cost_reduction: 0
+      rel_gradient_along_dq: 0
+      abs_gradient_along_dq: 0
+      rel_state_change: 0
+      abs_state_change: 0
 
-# Convergence thresholds
-tolerances:
-  rel_cost_reduction: 0
-  abs_cost_reduction: 0
-  rel_gradient_along_dq: 0
-  abs_gradient_along_dq: 0
-  rel_state_change: 0
-  abs_state_change: 0
+      # Method used to compute gradients of inverse dynamics, one of
+      gradients_method: 0    # {forward_differences, central_differences, central_differences4, autodiff}
 
-# Method used to compute gradients of inverse dynamics, one of
-gradients_method: 0    # {forward_differences, central_differences, central_differences4, autodiff}
+      # Contact model parameters. 
+      contact_stiffness : 3000    # normal force stiffness, in N/m
+      dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
-# Contact model parameters. 
-contact_stiffness : 3000    # normal force stiffness, in N/m
-dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
+      # Amount of smoothing (and therefore force at a distance) to apply when
+      # computing normal forces. This is equivalent to an analytical version of
+      # randomized smoothing, assuming that signed distances are drawn from a logistic
+      # distirbution with the smoothing factor as the scale parameter. Higher values
+      # mean more smoothing and more force at a distance. 
+      smoothing_factor : 0.01
 
-# Amount of smoothing (and therefore force at a distance) to apply when
-# computing normal forces. This is equivalent to an analytical version of
-# randomized smoothing, assuming that signed distances are drawn from a logistic
-# distirbution with the smoothing factor as the scale parameter. Higher values
-# mean more smoothing and more force at a distance. 
-smoothing_factor : 0.01
+      # Friction
+      friction_coefficient : 1.0  # Coefficient of friction.
+      stiction_velocity: 0.5     # Regularization velocity, in m/s.
 
-# Friction
-friction_coefficient : 1.0  # Coefficient of friction.
-stiction_velocity: 0.5     # Regularization velocity, in m/s.
+      # MPC parameters
+      Kp : [0, 0, 0,       # base orientation
+            0, 0, 0,       # base position
+            50, 50, 50,
+            50, 50, 50,
+            50, 50, 50,
+            50, 50, 50]
+      Kd : [0, 0, 0,
+            0, 0, 0, 
+            2, 2, 2,
+            2, 2, 2,
+            2, 2, 2,
+            2, 2, 2]
 
-# MPC parameters
-mpc_iters : 1
-Kp : [0, 0, 0,       # base orientation
-      0, 0, 0,       # base position
-      50, 50, 50,
-      50, 50, 50,
-      50, 50, 50,
-      50, 50, 50]
-Kd : [0, 0, 0,
-      0, 0, 0, 
-      2, 2, 2,
-      2, 2, 2,
-      2, 2, 2,
-      2, 2, 2]
+      k_spring : 100
+      d_damper : 100
+      damper_smooth : 200
+      spring_smooth : 100
+      zOffset : -0.02
 
-k_spring : 100
-d_damper : 100
-damper_smooth : 200
-spring_smooth : 100
-zOffset : -0.02
+      which_contact_model : 0  # 0 = soft; 1 = spring-damper
 
-which_contact_model : 0  # 0 = soft; 1 = spring-damper
+      mpc_iters : 1
+
+mpc:
+      dt : 0.05        # Discretization timestep (seconds)
+      horizon : 20     # number of timesteps

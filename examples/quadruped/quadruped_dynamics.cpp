@@ -20,13 +20,13 @@ Quadruped_Dynamics::Quadruped_Dynamics(YAML::Node config, const pinocchio::Model
       pinocchioModelCppAd_(model.template cast<ocs2::ad_scalar_t>()),
       pinocchioDataCppAd_(pinocchio::DataTpl<ocs2::ad_scalar_t>(pinocchioModelCppAd_)),
       footId_(footId) {
-  dt_ = config["dt"].as<double>();
-  param_.spring_k = config["contactModelParam"]["spring_k"].as<double>();
-  param_.damper_d = config["contactModelParam"]["damper_d"].as<double>();
-  param_.alpha = config["contactModelParam"]["alpha"].as<double>();
-  param_.alpha_n = config["contactModelParam"]["alpha_n"].as<double>();
-  param_.zOffset = config["contactModelParam"]["zOffset"].as<double>();
-  param_.smoothing = config["contactModelParam"]["smoothing"].as<int>();
+  dt_ = config["mpc"]["dt"].as<double>();
+  param_.spring_k = config["dms"]["contactModelParam"]["spring_k"].as<double>();
+  param_.damper_d = config["dms"]["contactModelParam"]["damper_d"].as<double>();
+  param_.alpha = config["dms"]["contactModelParam"]["alpha"].as<double>();
+  param_.alpha_n = config["dms"]["contactModelParam"]["alpha_n"].as<double>();
+  param_.zOffset = config["dms"]["contactModelParam"]["zOffset"].as<double>();
+  param_.smoothing = config["dms"]["contactModelParam"]["smoothing"].as<int>();
 
   auto systemFlowMapFunc = [&](const ocs2::ad_vector_t& x, ocs2::ad_vector_t& y) {
     ocs2::ad_vector_t state = x.head(nx_);
@@ -34,7 +34,7 @@ Quadruped_Dynamics::Quadruped_Dynamics(YAML::Node config, const pinocchio::Model
     y = quadruped_discrete_dynamics(pinocchioModelCppAd_, pinocchioDataCppAd_, state, input);
   };
   systemFlowMapCppAdInterfacePtr_.reset(new ocs2::CppAdInterface(systemFlowMapFunc, nx_ + nu_, "quadruped_dynamics_systemFlowMap", "../cppad_generated"));
-  if (config["recompileCppAdLibrary"].as<bool>()) {
+  if (config["dms"]["recompileCppAdLibrary"].as<bool>()) {
     systemFlowMapCppAdInterfacePtr_->createModels(ocs2::CppAdInterface::ApproximationOrder::First, true);
   } else {
     systemFlowMapCppAdInterfacePtr_->loadModelsIfAvailable(ocs2::CppAdInterface::ApproximationOrder::First, true);
@@ -48,12 +48,12 @@ ocs2::vector_t Quadruped_Dynamics::getValue(const ocs2::vector_t& x, const ocs2:
   // return systemFlowMapCppAdInterfacePtr_->getFunctionValue(stateInput);
   pinocchio::forwardKinematics(pinocchioModel_, pinocchioData_, x.head(18), x.tail(18));
   pinocchio::updateFramePlacements(pinocchioModel_, pinocchioData_);
-  std::cerr << "a*dt = " << dt_ * ocs2::legged_robot::forwardDynamics(pinocchioModel_, pinocchioData_, x, u, param_, footId_).transpose() << std::endl;
+  // std::cerr << "a*dt = " << dt_ * ocs2::legged_robot::forwardDynamics(pinocchioModel_, pinocchioData_, x, u, param_, footId_).transpose() << std::endl;
   for (int leg = 0; leg < 4; ++leg) {
-    std::cerr << "x = " << pinocchioData_.oMf[footId_[leg]].translation().transpose() << std::endl;
-    std::cerr << "v = "
-              << pinocchio::getFrameVelocity(pinocchioModel_, pinocchioData_, footId_[leg], pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED).linear().transpose()
-              << std::endl;
+    // std::cerr << "x = " << pinocchioData_.oMf[footId_[leg]].translation().transpose() << std::endl;
+    // std::cerr << "v = "
+    //           << pinocchio::getFrameVelocity(pinocchioModel_, pinocchioData_, footId_[leg], pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED).linear().transpose()
+    //           << std::endl;
     std::cerr << " force = " << computeEEForce(pinocchioModel_, pinocchioData_, param_, footId_[leg], x).transpose() << std::endl;
   }
   return quadruped_discrete_dynamics(pinocchioModel_, pinocchioData_, x, u);
@@ -70,8 +70,8 @@ std::pair<ocs2::matrix_t, ocs2::matrix_t> Quadruped_Dynamics::getFirstDerivative
   return std::pair(Jacobian.leftCols(nx_), Jacobian.rightCols(nu_));
 }
 
-ocs2::vector_t Quadruped_Dynamics::getQuasiStaticInput(const ocs2::vector_t& x) {
-  return ocs2::legged_robot::weightCompensatingInput(pinocchioModel_, pinocchioData_, x, footId_);
+std::pair<ocs2::vector_t, ocs2::vector_t> Quadruped_Dynamics::solveQuasiStaticProblem(const ocs2::vector_t& x) {
+  return std::pair(x, ocs2::legged_robot::weightCompensatingInput(pinocchioModel_, pinocchioData_, x, footId_));
 }
 
 template <typename SCALAR_T>

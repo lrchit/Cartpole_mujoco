@@ -19,6 +19,9 @@
 
 #include <mpc.h>
 #include <idto.h>
+#include <quadruped_cost.h>
+#include <quadruped_dynamics.h>
+#include <direct_multiple_shooting.h>
 
 class Quadruped_Example : public Example {
   public:
@@ -27,7 +30,8 @@ class Quadruped_Example : public Example {
     YAML::Node config = YAML::LoadFile(yaml_name);
     nq = config["nq"].as<int>();
     nv = config["nv"].as<int>();
-    horizontal_time = (Nt - 1) * config["dt"].as<double>();
+    nu = config["nu"].as<int>();
+    horizontal_time = (Nt - 1) * config["mpc"]["dt"].as<double>();
     demo_vel_x = config["demo_vel_x"].as<double>();
 
     std::vector<double> q_init = config["q_init"].as<std::vector<double>>();
@@ -44,15 +48,40 @@ class Quadruped_Example : public Example {
         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint", "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"};
     const pinocchio::ModelTpl<ocs2::scalar_t> model = createPinocchioModel(urdfFile, jointNames);
     pinocchio::DataTpl<ocs2::scalar_t> data(model);
-    const std::vector<pinocchio::FrameIndex> footId{model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"),
-        model.getFrameId("RR_foot"), model.getFrameId("FL_hip"), model.getFrameId("FR_hip"), model.getFrameId("RL_hip"), model.getFrameId("RR_hip"),
-        model.getFrameId("FL_thigh"), model.getFrameId("FR_thigh"), model.getFrameId("RL_thigh"), model.getFrameId("RR_thigh")};
-    // const std::vector<pinocchio::FrameIndex> footId{
-    //     model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"), model.getFrameId("RR_foot")};
-    std::unique_ptr<idto::optimizer::idto> inverseDynamicsController = std::make_unique<idto::optimizer::idto>(config, model, data, footId);
+    // const std::vector<pinocchio::FrameIndex> footId{model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"),
+    //     model.getFrameId("RR_foot"), model.getFrameId("FL_hip"), model.getFrameId("FR_hip"), model.getFrameId("RL_hip"), model.getFrameId("RR_hip"),
+    //     model.getFrameId("FL_thigh"), model.getFrameId("FR_thigh"), model.getFrameId("RL_thigh"), model.getFrameId("RR_thigh")};
+    const std::vector<pinocchio::FrameIndex> footId{
+        model.getFrameId("FL_foot"), model.getFrameId("FR_foot"), model.getFrameId("RL_foot"), model.getFrameId("RR_foot")};
 
     stateEstimator.reset(new StateEstimator(config, model, footId));
-    mpc.reset(new MpcController(config, std::move(inverseDynamicsController)));
+
+    // setting mpc
+    ocs2::matrix_t K(nu, nx);
+    const int use_which_solver = config["use_which_solver"].as<int>();
+    if (use_which_solver == 1) {
+      std::vector<double> Kp = config["idto"]["Kp"].as<std::vector<double>>();
+      std::vector<double> Kd = config["idto"]["Kd"].as<std::vector<double>>();
+      for (int i = 0; i < nu; ++i) {
+        K.middleCols(6, nu).diagonal()[i] = Kp[i];
+        K.middleCols(6 + nq, nu).diagonal()[i] = Kd[i];
+      }
+      std::unique_ptr<idto::optimizer::idto> inverseDynamicsController = std::make_unique<idto::optimizer::idto>(config, K, model, data, footId);
+      mpc.reset(new MpcController(config, std::move(inverseDynamicsController)));
+    } else if (use_which_solver == 2) {
+      std::vector<double> Kp = config["dms"]["Kp"].as<std::vector<double>>();
+      std::vector<double> Kd = config["dms"]["Kd"].as<std::vector<double>>();
+      for (int i = 0; i < nu; ++i) {
+        K.middleCols(6, nu).diagonal()[i] = Kp[i];
+        K.middleCols(6 + nq, nu).diagonal()[i] = Kd[i];
+      }
+      std::shared_ptr<Quadruped_Dynamics> quadruped_dynamics = std::make_shared<Quadruped_Dynamics>(config, model, footId);
+      std::shared_ptr<Quadruped_Cost> quadruped_cost = std::make_shared<Quadruped_Cost>(config, model, footId);
+      std::unique_ptr<DirectMultipleShooting> dmsController = std::make_unique<DirectMultipleShooting>(config, K, quadruped_dynamics, quadruped_cost);
+      mpc.reset(new MpcController(config, std::move(dmsController)));
+    } else {
+      throw std::runtime_error("Choose from 1 for idto, 2 for dms");
+    }
   }
 
   ~Quadruped_Example() {}
@@ -114,6 +143,7 @@ class Quadruped_Example : public Example {
 
   int nq;
   int nv;
+  int nu;
   double horizontal_time;
   double demo_vel_x;
 

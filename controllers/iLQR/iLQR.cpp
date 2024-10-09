@@ -2,7 +2,7 @@
 #include <iLQR.h>
 
 iLQR_Solver::iLQR_Solver(YAML::Node config, std::shared_ptr<Dynamics> dynamics_model, std::shared_ptr<Cost> cost, const ocs2::matrix_t Kguess) {
-  Nt = config["horizon"].as<int>() + 1;
+  Nt = config["mpc"]["horizon"].as<int>() + 1;
   nx = config["nx"].as<double>();
   nu = config["nu"].as<double>();
 
@@ -195,9 +195,7 @@ void iLQR_Solver::launch_controller(const ocs2::vector_t& xcur, const std::vecto
   // initial guess
   xtraj[0] = xcur;
   for (int k = 0; k < (Nt - 1); ++k) {
-    utraj[k] = dynamics_model_[k]->getQuasiStaticInput(xtraj[k]);
-    // utraj[k] += K_guess * (x_ref[k + 1] - xtraj[k]);
-    xtraj[k + 1] = dynamics_model_[k]->getValue(xtraj[k], utraj[k]);
+    std::tie(xtraj[k + 1], utraj[k]) = dynamics_model_[k]->solveQuasiStaticProblem(xtraj[k]);
   }
 
   // reference

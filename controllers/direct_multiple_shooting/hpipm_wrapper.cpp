@@ -44,7 +44,6 @@ void HpipmWrappers::resetQp() {
   }
   qp_memsize = std::max(qp_memsize, new_memsize);
   if (qp_mem == nullptr) {
-    std::cerr << qp_memsize << std::endl;
     qp_mem = malloc(qp_memsize);
   }
   d_ocp_qp_create(&dim, &qp, qp_mem);
