@@ -57,7 +57,7 @@ class Quadruped_Example : public Example {
     stateEstimator.reset(new StateEstimator(config, model, footId));
 
     // setting mpc
-    ocs2::matrix_t K(nu, nx);
+    ocs2::matrix_t K = ocs2::matrix_t::Zero(nu, nx);
     const int use_which_solver = config["use_which_solver"].as<int>();
     if (use_which_solver == 1) {
       std::vector<double> Kp = config["idto"]["Kp"].as<std::vector<double>>();
