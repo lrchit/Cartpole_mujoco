@@ -21,12 +21,17 @@ Quadruped_Dynamics::Quadruped_Dynamics(YAML::Node config, const pinocchio::Model
       pinocchioDataCppAd_(pinocchio::DataTpl<ocs2::ad_scalar_t>(pinocchioModelCppAd_)),
       footId_(footId) {
   dt_ = config["mpc"]["dt"].as<double>();
-  param_.spring_k = config["dms"]["contactModelParam"]["spring_k"].as<double>();
-  param_.damper_d = config["dms"]["contactModelParam"]["damper_d"].as<double>();
-  param_.alpha = config["dms"]["contactModelParam"]["alpha"].as<double>();
-  param_.alpha_n = config["dms"]["contactModelParam"]["alpha_n"].as<double>();
+  param_.k_spring = config["dms"]["contactModelParam"]["k_spring"].as<double>();
+  param_.d_damper = config["dms"]["contactModelParam"]["d_damper"].as<double>();
+  param_.damper_smooth = config["dms"]["contactModelParam"]["damper_smooth"].as<double>();
+  param_.spring_smooth = config["dms"]["contactModelParam"]["spring_smooth"].as<double>();
   param_.zOffset = config["dms"]["contactModelParam"]["zOffset"].as<double>();
-  param_.smoothing = config["dms"]["contactModelParam"]["smoothing"].as<int>();
+  param_.contact_stiffness = config["dms"]["contactModelParam"]["contact_stiffness"].as<double>();
+  param_.dissipation_velocity = config["dms"]["contactModelParam"]["dissipation_velocity"].as<double>();
+  param_.smoothing_factor = config["dms"]["contactModelParam"]["smoothing_factor"].as<double>();
+  param_.friction_coefficient = config["dms"]["contactModelParam"]["friction_coefficient"].as<double>();
+  param_.stiction_velocity = config["dms"]["contactModelParam"]["stiction_velocity"].as<double>();
+  param_.which_contact_model = config["dms"]["contactModelParam"]["which_contact_model"].as<int>();
 
   auto systemFlowMapFunc = [&](const ocs2::ad_vector_t& x, ocs2::ad_vector_t& y) {
     ocs2::ad_vector_t state = x.head(nx_);

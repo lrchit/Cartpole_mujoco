@@ -63,6 +63,7 @@ struct ProblemDefinition {
         pairedForceSelectMatrix.block(0, 6 + 9, 3, 3) = D;
         pairedForceSelectMatrix.block(3, 6 + 6, 3, 3) = D;
         dSymmetricControlCost_dtaudtau = symmetricControlCostCoefficient * pairedForceSelectMatrix.transpose() * pairedForceSelectMatrix;
+        break;
       case 1:
         D = ocs2::matrix_t::Identity(3, 3);
         D.block(1, 1, 2, 2) = -D.block(1, 1, 2, 2);
@@ -71,6 +72,7 @@ struct ProblemDefinition {
         pairedForceSelectMatrix.block(3, 6 + 9, 3, 3) = I3;
         pairedForceSelectMatrix.block(3, 6 + 6, 3, 3) = D;
         dSymmetricControlCost_dtaudtau = symmetricControlCostCoefficient * pairedForceSelectMatrix.transpose() * pairedForceSelectMatrix;
+        break;
       case 2:
         D = -ocs2::matrix_t::Identity(3, 3);
         pairedForceSelectMatrix.block(0, 6 + 0, 3, 3) = I3;
@@ -78,8 +80,10 @@ struct ProblemDefinition {
         pairedForceSelectMatrix.block(3, 6 + 9, 3, 3) = I3;
         pairedForceSelectMatrix.block(0, 6 + 6, 3, 3) = D;
         dSymmetricControlCost_dtaudtau = symmetricControlCostCoefficient * pairedForceSelectMatrix.transpose() * pairedForceSelectMatrix;
+        break;
       case 3:
         dSymmetricControlCost_dtaudtau = ocs2::matrix_t::Zero(18, 18);
+        break;
     }
 
     for (int k = 0; k < num_steps + 1; ++k) {

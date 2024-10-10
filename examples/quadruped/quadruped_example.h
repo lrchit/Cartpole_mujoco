@@ -112,6 +112,7 @@ class Quadruped_Example : public Example {
     // }
     if (timer.getCurrentTime() > 4) {
       xtarget[0] = xcur[0] + demo_vel_x * horizontal_time;
+      // xtarget[1] = xcur[1];
       xtarget[nq + 0] = demo_vel_x;
       xtarget[4] = 0.0;
     }

@@ -35,7 +35,7 @@ void quadruped_dynamics_systemFlowMap_sparse_jacobian(double const *const * in,
    double* jac = out[0];
 
    // auxiliary variables
-   double v[1693];
+   double v[1777];
    double array[0];
    double sarray[0];
    unsigned long idx[0];

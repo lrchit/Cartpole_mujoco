@@ -43,14 +43,19 @@ vector_s_t<SCALAR_T> originForwardDynamics(const pinocchio::ModelTpl<SCALAR_T>& 
  */
 
 struct ContactModelParam {
-  double spring_k;  // stiffness of vertical spring
-  double damper_d;  // damper coefficient
-  double alpha;     // velocity smoothing coefficient
-  double alpha_n;   // normal force smoothing coefficient
-  double zOffset;   // z offset of the plane with respect to (0, 0, 0), we currently assume flat ground at height zero penetration is only z height
-  int smoothing;    // the type of velocity smoothing, NONE = 0, SIGMOID = 1, TANH = 2, ABS = 3
+  double k_spring;       // stiffness of vertical spring
+  double d_damper;       // damper coefficient
+  double damper_smooth;  // velocity smoothing coefficient
+  double spring_smooth;  // normal force smoothing coefficient
+  double zOffset;        // z offset of the plane with respect to (0, 0, 0), we currently assume flat ground at height zero penetration is only z height
 
-  enum smoothingType { NONE = 0, SIGMOID, TANH, ABS };
+  double contact_stiffness;
+  double dissipation_velocity;
+  double smoothing_factor;
+  double friction_coefficient;
+  double stiction_velocity;
+
+  int which_contact_model;
 };
 
 template <typename SCALAR_T>
@@ -93,18 +98,6 @@ vector3_s_t<SCALAR_T> computeEEForce(const pinocchio::ModelTpl<SCALAR_T>& model,
     const ContactModelParam& param,
     const size_t endEffectorFrameIndex,
     const vector_s_t<SCALAR_T>& state);
-
-template <typename SCALAR_T>
-void computeDamperForce(vector3_s_t<SCALAR_T>& eeForce,
-    const ContactModelParam& param,
-    const vector3_s_t<SCALAR_T>& eePenetration,
-    const vector3_s_t<SCALAR_T>& eeVelocity);
-
-template <typename SCALAR_T>
-void smoothEEForce(vector3_s_t<SCALAR_T>& eeForce, const ContactModelParam& param, const vector3_s_t<SCALAR_T>& eePenetration);
-
-template <typename SCALAR_T>
-void computeNormalSpring(vector3_s_t<SCALAR_T>& eeForce, const ContactModelParam& param, const SCALAR_T& p_N, const SCALAR_T& p_dot_N);
 
 template <typename SCALAR_T>
 bool getContactFlagFromPenetration(const vector3_s_t<SCALAR_T>& eePenetration);

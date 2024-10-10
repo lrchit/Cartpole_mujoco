@@ -29,13 +29,13 @@ vector_s_t<SCALAR_T> originForwardDynamics(const pinocchio::ModelTpl<SCALAR_T>& 
   const vector_s_t<SCALAR_T> v = state.tail(18);
   const vector_s_t<SCALAR_T> torque = input.head(12);
   const vector_s_t<SCALAR_T> tau = (vector_s_t<SCALAR_T>(18) << vector_s_t<SCALAR_T>::Zero(6), torque).finished();
-  const vector_s_t<SCALAR_T> lambda = input.tail(12);
+  const vector_s_t<SCALAR_T> lambda = input.tail(3 * endEffectorFrameIndices.size());
 
   pinocchio::forwardKinematics(model, data_, q, v);
   pinocchio::updateFramePlacements(model, data_);
 
   pinocchio::container::aligned_vector<pinocchio::ForceTpl<SCALAR_T>> fext(model.njoints, pinocchio::ForceTpl<SCALAR_T>::Zero());
-  for (size_t i = 0; i < 4; i++) {
+  for (size_t i = 0; i < endEffectorFrameIndices.size(); i++) {
     const auto frameIndex = endEffectorFrameIndices[i];
     const auto jointIndex = model.frames[frameIndex].parent;
     const vector3_s_t<SCALAR_T> translationJointFrameToContactFrame = model.frames[frameIndex].placement.translation();
@@ -79,8 +79,7 @@ vector_s_t<SCALAR_T> forwardDynamics(const pinocchio::ModelTpl<SCALAR_T>& model,
   pinocchio::updateFramePlacements(model, data_temp);
 
   pinocchio::container::aligned_vector<pinocchio::ForceTpl<SCALAR_T>> fext(model.njoints, pinocchio::ForceTpl<SCALAR_T>::Zero());
-  for (size_t i = 0; i < 4; i++) {
-    const auto frameIndex = endEffectorFrameIndices[i];
+  for (const int frameIndex : endEffectorFrameIndices) {
     const vector3_s_t<SCALAR_T> contactReactionForce = computeEEForce(model, data_temp, param, frameIndex, state);
     const auto jointIndex = model.frames[frameIndex].parent;
     const vector3_s_t<SCALAR_T> translationJointFrameToContactFrame = model.frames[frameIndex].placement.translation();
@@ -165,14 +164,43 @@ vector3_s_t<SCALAR_T> computeEEForce(const pinocchio::ModelTpl<SCALAR_T>& model,
   eePenetration << SCALAR_T(0.0), SCALAR_T(0.0), eePosVel[2];
 
   vector3_s_t<SCALAR_T> eeForce;
-  const bool isContact = param.smoothing == ContactModelParam::smoothingType::NONE && getContactFlagFromPenetration(eePenetration) ? false : true;
-  if (isContact) {
-    const vector3_s_t<SCALAR_T> eeVelocity = eePosVel.tail(3);
-    computeDamperForce(eeForce, param, eePenetration, eeVelocity);
-    smoothEEForce(eeForce, param, eePenetration);
-    computeNormalSpring(eeForce, param, eePenetration(2) - SCALAR_T(param.zOffset), eeVelocity(2));
-  } else {
-    eeForce.setZero();
+  const vector3_s_t<SCALAR_T> eeVelocity = eePosVel.tail(3);
+
+  const double k = param.contact_stiffness;
+  const double sigma = param.smoothing_factor;
+
+  if (param.which_contact_model == 1) {  // spring-damper
+    eeForce = -SCALAR_T(param.d_damper) * eeVelocity;
+    eeForce *= SCALAR_T(1.0) / (SCALAR_T(1.0) + exp(eePenetration[2] * SCALAR_T(param.damper_smooth)));
+    eeForce[2] += SCALAR_T(param.k_spring) * exp(-SCALAR_T(param.spring_smooth) * eePenetration(2) - SCALAR_T(param.zOffset));
+  } else if (param.which_contact_model == 0) {  // soft model
+    const double dissipation_velocity = param.dissipation_velocity;
+    const double vs = param.stiction_velocity;     // Regularization.
+    const double mu = param.friction_coefficient;  // Coefficient of friction.
+
+    // normal force
+    SCALAR_T dissipation_factor;
+    const SCALAR_T s = eeVelocity[2] / SCALAR_T(dissipation_velocity);
+    dissipation_factor = CppAD::CondExpLt(s, SCALAR_T(0.0), SCALAR_T(1.0) - s, (s - SCALAR_T(2.0)) * (s - SCALAR_T(2.0)) / SCALAR_T(4.0));
+    dissipation_factor = CppAD::CondExpLt(s, SCALAR_T(2.0), dissipation_factor, SCALAR_T(0.0));
+    SCALAR_T compliant_fn;
+    const SCALAR_T exponent = -eePenetration[2] / SCALAR_T(sigma);
+    compliant_fn = CppAD::CondExpLt(exponent, SCALAR_T(37), SCALAR_T(sigma * k) * log(SCALAR_T(1.0) + exp(exponent)), SCALAR_T(-k) * eePenetration[2]);
+    const SCALAR_T fn = compliant_fn * dissipation_factor;
+
+    // tangent force
+    const ocs2::vector3_s_t<SCALAR_T> vt = ocs2::vector3_s_t<SCALAR_T>(eeVelocity[0], eeVelocity[1], SCALAR_T(0.0));
+    const ocs2::vector3_s_t<SCALAR_T> that_regularized = -vt / sqrt(SCALAR_T(vs * vs) + vt.squaredNorm());
+    const ocs2::vector3_s_t<SCALAR_T> ft_BC_W = that_regularized * SCALAR_T(mu) * fn;
+
+    eeForce = ft_BC_W;
+    eeForce[2] += fn;
+  }
+
+  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  const double threshold = -sigma * log(exp(eps / (sigma * k)) - 1.0);
+  for (int i = 0; i < 3; ++i) {
+    eeForce[i] = CppAD::CondExpLt(eePenetration[2], SCALAR_T(threshold), eeForce[i], SCALAR_T(0.0));
   }
   return eeForce;
 }
@@ -186,58 +214,6 @@ template ad_vector3_t computeEEForce(const pinocchio::ModelTpl<ad_scalar_t>&,
     const ContactModelParam&,
     const size_t,
     const ad_vector_t&);
-
-/******************************************************************************************************/
-/******************************************************************************************************/
-/******************************************************************************************************/
-template <typename SCALAR_T>
-void computeDamperForce(vector3_s_t<SCALAR_T>& eeForce,
-    const ContactModelParam& param,
-    const vector3_s_t<SCALAR_T>& eePenetration,
-    const vector3_s_t<SCALAR_T>& eeVelocity) {
-  eeForce = -SCALAR_T(param.damper_d) * eeVelocity;
-}
-template void computeDamperForce(vector3_t&, const ContactModelParam&, const vector3_t&, const vector3_t&);
-template void computeDamperForce(ad_vector3_t&, const ContactModelParam&, const ad_vector3_t&, const ad_vector3_t&);
-
-/******************************************************************************************************/
-/******************************************************************************************************/
-/******************************************************************************************************/
-template <typename SCALAR_T>
-void smoothEEForce(vector3_s_t<SCALAR_T>& eeForce, const ContactModelParam& param, const vector3_s_t<SCALAR_T>& eePenetration) {
-  switch (param.smoothing) {
-    case ContactModelParam::smoothingType::NONE:
-      return;
-    case ContactModelParam::smoothingType::SIGMOID:
-      eeForce *= SCALAR_T(1.0) / (SCALAR_T(1.0) + exp(eePenetration[2] * SCALAR_T(param.alpha)));
-      return;
-    case ContactModelParam::smoothingType::TANH:
-      // same as sigmoid, maybe cheaper / more expensive to compute?
-      eeForce *= SCALAR_T(0.5) * tanh(-SCALAR_T(0.5) * eePenetration[2] * SCALAR_T(param.alpha)) + SCALAR_T(0.5);
-      return;
-    case ContactModelParam::smoothingType::ABS:
-      eeForce *= SCALAR_T(0.5) * -eePenetration[2] * SCALAR_T(param.alpha) / (SCALAR_T(1.0) + fabs(-eePenetration[2] * SCALAR_T(param.alpha))) + SCALAR_T(0.5);
-      return;
-    default:
-      throw std::runtime_error("undefined smoothing function");
-  }
-}
-template void smoothEEForce(vector3_t&, const ContactModelParam&, const vector3_t&);
-template void smoothEEForce(ad_vector3_t&, const ContactModelParam&, const ad_vector3_t&);
-
-/******************************************************************************************************/
-/******************************************************************************************************/
-/******************************************************************************************************/
-template <typename SCALAR_T>
-void computeNormalSpring(vector3_s_t<SCALAR_T>& eeForce, const ContactModelParam& param, const SCALAR_T& p_N, const SCALAR_T& p_dot_N) {
-  if (param.alpha_n > 0.0) {
-    eeForce[2] += SCALAR_T(param.spring_k) * exp(-SCALAR_T(param.alpha_n) * p_N);
-  } else if (p_N <= SCALAR_T(0.0)) {
-    eeForce[2] -= SCALAR_T(param.spring_k) * p_N;
-  }
-}
-template void computeNormalSpring(vector3_t&, const ContactModelParam&, const scalar_t&, const scalar_t&);
-template void computeNormalSpring(ad_vector3_t&, const ContactModelParam&, const ad_scalar_t&, const ad_scalar_t&);
 
 /******************************************************************************************************/
 /******************************************************************************************************/
@@ -258,7 +234,7 @@ vector_s_t<SCALAR_T> inverseDynamics(const pinocchio::ModelTpl<SCALAR_T>& model,
   pinocchio::updateFramePlacements(model, data_temp);
 
   pinocchio::container::aligned_vector<pinocchio::ForceTpl<SCALAR_T, 0>> fext(model.njoints, pinocchio::ForceTpl<SCALAR_T, 0>::Zero());
-  for (size_t i = 0; i < 4; i++) {
+  for (size_t i = 0; i < endEffectorFrameIndices.size(); i++) {
     const auto frameIndex = endEffectorFrameIndices[i];
     const auto jointIndex = model.frames[frameIndex].parent;
     const vector3_s_t<SCALAR_T> translationJointFrameToContactFrame = model.frames[frameIndex].placement.translation();
@@ -301,10 +277,10 @@ vector_s_t<SCALAR_T> weightCompensatingInput(const pinocchio::ModelTpl<SCALAR_T>
   pinocchio::updateFramePlacements(model, data_temp);
 
   // lambda part:
-  vector_s_t<SCALAR_T> lambda = vector_s_t<SCALAR_T>::Zero(12);
+  vector_s_t<SCALAR_T> lambda = vector_s_t<SCALAR_T>::Zero(3 * endEffectorFrameIndices.size());
   size_t numStanceLegs = 0;
   contact_flag_t contactFlags;
-  for (size_t i = 0; i < 4; i++) {
+  for (size_t i = 0; i < endEffectorFrameIndices.size(); i++) {
     const vector3_s_t<SCALAR_T> eePenetration = getEEPosition(model, data, endEffectorFrameIndices[i], state);
     contactFlags[i] = getContactFlagFromPenetration(eePenetration);
     if (contactFlags[i]) {

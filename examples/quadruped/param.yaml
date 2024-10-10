@@ -81,33 +81,35 @@ idto:
   # Method used to compute gradients of inverse dynamics, one of
   gradients_method: 0    # {forward_differences, central_differences, central_differences4, autodiff}
 
-  # Contact model parameters. 
-  contact_stiffness : 2000    # normal force stiffness, in N/m
-  dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
-  # Amount of smoothing (and therefore force at a distance) to apply when
-  # computing normal forces. This is equivalent to an analytical version of
-  # randomized smoothing, assuming that signed distances are drawn from a logistic
-  # distirbution with the smoothing factor as the scale parameter. Higher values
-  # mean more smoothing and more force at a distance. 
-  smoothing_factor : 0.01
+  contactModelParam:
+    # Contact model parameters. 
+    contact_stiffness : 2000    # normal force stiffness, in N/m
+    dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
-  # Friction
-  friction_coefficient : 1.0  # Coefficient of friction.
-  stiction_velocity: 0.5      # Regularization velocity, in m/s.
+    # Amount of smoothing (and therefore force at a distance) to apply when
+    # computing normal forces. This is equivalent to an analytical version of
+    # randomized smoothing, assuming that signed distances are drawn from a logistic
+    # distirbution with the smoothing factor as the scale parameter. Higher values
+    # mean more smoothing and more force at a distance. 
+    smoothing_factor : 0.01
+
+    # Friction
+    friction_coefficient : 1.0  # Coefficient of friction.
+    stiction_velocity: 0.5      # Regularization velocity, in m/s.
+
+    k_spring : 100
+    d_damper : 100
+    damper_smooth : 100
+    spring_smooth : 100
+    zOffset : -0.02
+
+    which_contact_model : 1  # 0 = soft; 1 = spring-damper(0 behaves better at moving, 1 is better at angular actions).
 
   #gait heuristic
   gaitHeuristic: 3  # 0 for trotting, 1 for bounding, 2 for pacing, 3 for free
   # Symmetric Control Cost
   symmetricControlCostCoefficient: 0.01
-
-  k_spring : 100
-  d_damper : 100
-  damper_smooth : 100
-  spring_smooth : 100
-  zOffset : -0.02
-
-  which_contact_model : 1  # 0 = soft; 1 = spring-damper(0 behaves better at moving, 1 is better at angular actions).
 
   # foot slip and clearance cost
   recompileFootSlipAndClearanceCost: false
@@ -127,7 +129,7 @@ idto:
 
 dms:
   # cost
-  Q: [100, 100, 100,  # body pos
+  Q: [100, 100, 500,  # body pos
     100, 100, 100,    # body zyx angle
     30, 30, 30,       # joint pos
     30, 30, 30,
@@ -140,7 +142,7 @@ dms:
     5, 5, 5,
     5, 5, 5]
 
-  Qn: [100, 100, 100,  # body pos
+  Qn: [100, 100, 500,  # body pos
     100, 100, 100,    # body zyx angle
     30, 30, 30,       # joint pos
     30, 30, 30,
@@ -169,12 +171,29 @@ dms:
         2, 2, 2]
 
   contactModelParam:
-    spring_k: 100
-    damper_d: 200
-    alpha: 100
-    alpha_n: 100
-    zOffset: -0.02
-    smoothing: 1
+    k_spring : 100
+    d_damper : 100
+    damper_smooth : 100
+    spring_smooth : 100
+    zOffset : -0.02
+
+    # Contact model parameters. 
+    contact_stiffness : 2000    # normal force stiffness, in N/m
+    dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
+
+    # Amount of smoothing (and therefore force at a distance) to apply when
+    # computing normal forces. This is equivalent to an analytical version of
+    # randomized smoothing, assuming that signed distances are drawn from a logistic
+    # distirbution with the smoothing factor as the scale parameter. Higher values
+    # mean more smoothing and more force at a distance. 
+    smoothing_factor : 0.01
+
+    # Friction
+    friction_coefficient : 1.0  # Coefficient of friction.
+    stiction_velocity: 0.5      # Regularization velocity, in m/s.
+
+    which_contact_model : 0  # 0 = soft; 1 = spring-damper(0 behaves better at moving, 1 is better at angular actions).
+
 
   # cppad code gen
   recompileCppAdLibrary: false
@@ -189,7 +208,7 @@ dms:
   # verbose
   verbose_cal_time: true
 
-use_which_solver: 2  # 1 for idto, 2 for dms
+use_which_solver: 1  # 1 for idto, 2 for dms
 
 # # idto mpc settings
 # mpc:
@@ -203,7 +222,7 @@ use_which_solver: 2  # 1 for idto, 2 for dms
 mpc:
   dt: 0.02
   horizon: 50
-  mpcFrequency: 50
+  mpcFrequency: 60
   mrtFrequency: 500
   useFeedbackPolicy: true
 
@@ -218,4 +237,4 @@ foot_sensor_noise_velocity    :  0.1
 imu_process_noise_position    :  0.02
 imu_process_noise_velocity    :  0.02
 
-demo_vel_x: 0.0
+demo_vel_x: 0.3
